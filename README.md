@@ -29,3 +29,9 @@ npm run dev
 ## Program Studi
 S1 Informatika — Fakultas Ilmu Komputer  
 Universitas Amikom Yogyakarta — 2026
+
+## Status Pengembangan
+- ✅ Modul Monitoring Produksi — selesai
+- ✅ Modul Quality Control — selesai  
+- ✅ Modul Logistik & Tracking — selesai
+- ✅ Integrasi antar modul — selesai
