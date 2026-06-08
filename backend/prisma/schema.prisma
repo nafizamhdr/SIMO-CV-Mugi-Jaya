@@ -49,6 +49,7 @@ model User {
   workItems  WorkItem[]  @relation("AssignedTo")
   auditLogs  AuditLog[]
   qcRecords  QCRecord[]
+  shipments  Shipment[]  @relation("CreatedBy")
 }
 
 model Project {
@@ -61,6 +62,7 @@ model Project {
 
   workItems      WorkItem[]
   specifications Specification[]
+  shipments      Shipment[]
 }
 
 model Warehouse {
@@ -162,4 +164,63 @@ model QCCertificate {
   projectId  String
   batchIds   String[] // array workItem IDs
   issuedAt   DateTime @default(now())
+
+  shipment Shipment?
+}
+
+// ============================================================
+// MODUL LOGISTIK (PIC: Redomas)
+// ============================================================
+
+enum ShipmentStatus {
+  DRAFT
+  DISPATCHED
+  IN_TRANSIT
+  DELIVERED
+  ANOMALY
+}
+
+model Vendor {
+  id         String   @id @default(cuid())
+  name       String
+  contact    String
+  licenseNo  String
+  rating     Float    @default(0)
+  isApproved Boolean  @default(false)
+  createdAt  DateTime @default(now())
+
+  shipments Shipment[]
+}
+
+model Shipment {
+  id              String         @id @default(cuid())
+  projectId       String
+  vendorId        String
+  qcCertificateId String?        @unique
+  createdById     String
+  driverName      String
+  vehicleNo       String
+  insurancePolis  String
+  status          ShipmentStatus @default(DRAFT)
+  departedAt      DateTime?
+  arrivedAt       DateTime?
+  createdAt       DateTime       @default(now())
+
+  project       Project        @relation(fields: [projectId], references: [id])
+  vendor        Vendor         @relation(fields: [vendorId], references: [id])
+  qcCertificate QCCertificate? @relation(fields: [qcCertificateId], references: [id])
+  createdBy     User           @relation("CreatedBy", fields: [createdById], references: [id])
+  trackingLogs  TrackingLog[]
+}
+
+model TrackingLog {
+  id         String   @id @default(cuid())
+  shipmentId String
+  lat        Float
+  lng        Float
+  speed      Float?
+  isAnomaly  Boolean  @default(false)
+  loggedAt   DateTime @default(now())
+
+  shipment Shipment @relation(fields: [shipmentId], references: [id])
 }

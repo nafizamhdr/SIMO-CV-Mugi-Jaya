@@ -1,6 +1,7 @@
 import { PrismaClient } from "@prisma/client";
 import { seedProduksi } from "./seeds/produksi.seed";
 import { seedQC } from "./seeds/qc.seed";
+import { seedLogistik } from "./seeds/logistik.seed";
 
 /**
  * Seed orchestrator. Menjalankan seed tiap modul secara berurutan.
@@ -16,6 +17,7 @@ async function main(): Promise<void> {
   console.log("🌱 Menjalankan seed database SIMO...");
   await seedProduksi(prisma);
   await seedQC(prisma);
+  await seedLogistik(prisma);
   // eslint-disable-next-line no-console
   console.log("✅ Seed selesai.");
 }
