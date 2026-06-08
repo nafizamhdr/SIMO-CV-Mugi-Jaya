@@ -1,0 +1,18 @@
+// ============================================================
+// SIMO — Prisma Schema (sumber kebenaran database)
+// ============================================================
+// Konfigurasi Prisma & koneksi PostgreSQL disiapkan oleh Tegar (Infrastruktur).
+// Model entitas ditambahkan oleh tiap developer sesuai modulnya:
+//   - Modul Produksi (Nafiza) : User, Project, Warehouse, WorkItem, AuditLog + enum Role, WorkItemStatus
+//   - Modul QC      (Regian)  : Specification, QCRecord, NCItem, QCCertificate + enum QCStatus
+//   - Modul Logistik(Redomas) : Vendor, Shipment, TrackingLog + enum ShipmentStatus
+// ============================================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
