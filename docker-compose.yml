@@ -1,0 +1,42 @@
+# ============================================================
+# SIMO — Development services (PostgreSQL + Redis)
+# Usage: docker-compose up -d postgres redis
+# ============================================================
+version: "3.9"
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: simo-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: simo
+      POSTGRES_PASSWORD: simo123
+      POSTGRES_DB: simo_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - simo_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U simo -d simo_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: simo-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - simo_redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  simo_pgdata:
+  simo_redisdata:
