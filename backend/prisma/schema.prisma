@@ -16,3 +16,88 @@ datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
 }
+
+// ============================================================
+// MODUL PRODUKSI (PIC: Nafiza)
+// ============================================================
+
+enum Role {
+  OWNER
+  KEPALA_PRODUKSI
+  MANDOR
+  INSPECTOR_QC
+  SUPERVISOR_LAPANGAN
+  ADMIN_OPERASIONAL
+}
+
+enum WorkItemStatus {
+  TODO
+  IN_PROGRESS
+  DONE
+}
+
+model User {
+  id        String   @id @default(cuid())
+  name      String
+  email     String   @unique
+  password  String // bcrypt hash
+  role      Role
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  warehouses Warehouse[]
+  workItems  WorkItem[]  @relation("AssignedTo")
+  auditLogs  AuditLog[]
+}
+
+model Project {
+  id        String    @id @default(cuid())
+  name      String
+  location  String
+  startDate DateTime
+  endDate   DateTime?
+  createdAt DateTime  @default(now())
+
+  workItems WorkItem[]
+}
+
+model Warehouse {
+  id        String   @id @default(cuid())
+  name      String
+  location  String
+  mandorId  String
+  mandor    User     @relation(fields: [mandorId], references: [id])
+  createdAt DateTime @default(now())
+
+  workItems WorkItem[]
+}
+
+model WorkItem {
+  id          String         @id @default(cuid())
+  name        String
+  description String?
+  status      WorkItemStatus @default(TODO)
+  projectId   String
+  warehouseId String
+  assigneeId  String?
+  photoUrl    String?
+  updatedAt   DateTime       @updatedAt
+  createdAt   DateTime       @default(now())
+
+  project   Project   @relation(fields: [projectId], references: [id])
+  warehouse Warehouse @relation(fields: [warehouseId], references: [id])
+  assignee  User?     @relation("AssignedTo", fields: [assigneeId], references: [id])
+}
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  userId    String
+  action    String // e.g. "UPDATE_WORK_ITEM_STATUS"
+  entity    String // e.g. "WorkItem"
+  entityId  String
+  before    Json?
+  after     Json?
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id])
+}
