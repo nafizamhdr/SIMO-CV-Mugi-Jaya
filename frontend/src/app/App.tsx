@@ -1,0 +1,348 @@
+import { useState } from "react";
+import { Toaster, toast } from "sonner";
+import { LoginPage } from "./components/LoginPage";
+import { Layout } from "./components/Layout";
+import { DashboardPage } from "./components/DashboardPage";
+import { ProduksiPage } from "./components/ProduksiPage";
+import { QCPage } from "./components/QCPage";
+import { LogistikPage } from "./components/LogistikPage";
+import { RepositoriPage } from "./components/RepositoriPage";
+import { AuditTrailPage } from "./components/AuditTrailPage";
+import { SuratJalanModal } from "./components/SuratJalanModal";
+import { PreviewDocModal } from "./components/PreviewDocModal";
+import {
+  ROLES,
+  MENU_DEF,
+  initWarehouses,
+  initQCBatches,
+  initShipments,
+  initDocuments,
+  initAuditTrail,
+  type User,
+  type PageKey,
+  type Warehouse,
+  type Shipment,
+  type QCBatch,
+  type AuditEntry,
+} from "./components/data";
+
+let shipCounter = 78;
+let certCounter = 91;
+
+export default function App() {
+  const [user, setUser] = useState<User | null>(null);
+  const [activePage, setActivePage] = useState<PageKey>("dashboard");
+  const [isOnline, setIsOnline] = useState(true);
+  const [warehouses, setWarehouses] = useState(initWarehouses());
+  const [qcBatches, setQcBatches] = useState(initQCBatches());
+  const [shipments, setShipments] = useState(initShipments());
+  const [documents, setDocuments] = useState(initDocuments());
+  const [auditTrail, setAuditTrail] = useState<AuditEntry[]>(initAuditTrail());
+
+  const [suratJalanId, setSuratJalanId] = useState<string | null>(null);
+  const [previewState, setPreviewState] = useState<{
+    docId: string;
+    ver: string;
+  } | null>(null);
+
+  function addAudit(
+    aksi: string,
+    entitas: string,
+    sebelum = "—",
+    sesudah = "—",
+  ) {
+    const now = new Date();
+    const waktu =
+      now.toLocaleDateString("id-ID", { day: "2-digit", month: "short" }) +
+      ", " +
+      now.toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" });
+    setAuditTrail((prev) => [
+      {
+        waktu,
+        tgl: now.toISOString().slice(0, 10),
+        user: user?.name || "Sistem",
+        aksi,
+        entitas,
+        sebelum,
+        sesudah,
+      },
+      ...prev,
+    ]);
+  }
+
+  function handleLogin(roleKey: string) {
+    const role = ROLES[roleKey as keyof typeof ROLES];
+    const newUser: User = {
+      roleKey: roleKey as any,
+      name: role.name,
+      short: role.short,
+      desc: role.desc,
+      menus: role.menus,
+    };
+    setUser(newUser);
+    setActivePage(role.menus[0]);
+    addAudit("Akses", `Login sebagai ${role.name}`, "—", "Login");
+    toast.success(`Selamat datang, ${role.name}!`);
+  }
+
+  function handleLogout() {
+    setUser(null);
+    toast.success("Berhasil keluar dari sistem");
+  }
+
+  function handleNavigate(page: PageKey) {
+    if (!user?.menus.includes(page)) {
+      toast.error("Akses ditolak untuk peran Anda");
+      return;
+    }
+    setActivePage(page);
+  }
+
+  function handleToggleConnection() {
+    setIsOnline((prev) => {
+      const next = !prev;
+      toast(next ? "Koneksi online dipulihkan" : "Mode offline diaktifkan", {
+        icon: next ? "✅" : "⚠️",
+      });
+      return next;
+    });
+  }
+
+  // Produksi
+  function handleProduksiSubmit(whId: string, status: Warehouse["status"]) {
+    setWarehouses((prev) =>
+      prev.map((w) => {
+        if (w.id !== whId) return w;
+        const prevStatus = w.status;
+        const progress =
+          status === "Done"
+            ? 100
+            : status === "In-Progress"
+              ? Math.max(w.progress, 50)
+              : status === "To-Do"
+                ? 10
+                : w.progress;
+        addAudit("Produksi", whId, prevStatus, status);
+        return { ...w, status, progress };
+      }),
+    );
+    if (isOnline) toast.success("Laporan terkirim — dashboard diperbarui");
+    else toast.warning("Offline — laporan disimpan & akan disinkronkan");
+  }
+
+  // QC
+  function handleQCUpdate(
+    batchIdx: number,
+    itemIdx: number,
+    result: "Pass" | "Fail",
+  ) {
+    setQcBatches((prev) => {
+      const updated = prev.map((b, bi) => {
+        if (bi !== batchIdx) return b;
+        const items = b.items.map((it, ii) =>
+          ii === itemIdx ? { ...it, hasil: result } : it,
+        );
+        return { ...b, items };
+      });
+      const b = updated[batchIdx];
+      addAudit(
+        "QC",
+        `${b.id} / ${b.items[itemIdx].nama}`,
+        "Pending",
+        result === "Pass" ? "PASS" : "FAIL (NCI)",
+      );
+      return updated;
+    });
+    toast[result === "Pass" ? "success" : "error"](
+      result === "Pass"
+        ? "Item lolos QC"
+        : "Di luar toleransi — dicatat sebagai NCI",
+    );
+  }
+
+  function handleIssueCert(batchIdx: number) {
+    const cert = `QC-CERT-2026-${String(++certCounter).padStart(4, "0")}`;
+    setQcBatches((prev) =>
+      prev.map((b, i) => (i === batchIdx ? { ...b, certificate: cert } : b)),
+    );
+    const b = qcBatches[batchIdx];
+    addAudit("QC", `Certificate ${b.id}`, "Belum terbit", cert);
+    toast.success(`QC Certificate ${cert} terbit — batch siap kirim`);
+  }
+
+  // Logistik
+  function handleDispatch(data: Omit<Shipment, "id">) {
+    const id = `SHIP-2026-${String(++shipCounter).padStart(4, "0")}`;
+    const newShipment: Shipment = {
+      ...data,
+      id,
+      suratJalan: `SJ-2026-${String(shipCounter).padStart(4, "0")}`,
+    };
+    setShipments((prev) => [newShipment, ...prev]);
+    addAudit("Logistik", `${id} (${data.vendor})`, "Draft", "Dispatched");
+    toast.success(`${id} diberangkatkan — Surat Jalan & tracking aktif`);
+  }
+
+  function handleSimulateAnomaly() {
+    const target = shipments.find((s) => s.status === "Normal");
+    if (!target) {
+      toast.info("Tidak ada pengiriman normal untuk disimulasikan");
+      return;
+    }
+    toast.warning(
+      `Memantau ${target.id} — terdeteksi berhenti di luar rute...`,
+    );
+    setTimeout(() => {
+      setShipments((prev) =>
+        prev.map((s) => (s.id === target.id ? { ...s, status: "Anomali" } : s)),
+      );
+      addAudit(
+        "Logistik",
+        `${target.id} berhenti di luar jadwal > 2 jam`,
+        "Normal",
+        "ANOMALI (keluar rute)",
+      );
+      toast.error(
+        `⚠ ${target.id} keluar rute > 2 jam! Notifikasi anomali terkirim ke Admin`,
+      );
+    }, 2000);
+  }
+
+  // Repositori
+  function handleUploadVersion() {
+    if (user?.roleKey !== "inspector" && user?.roleKey !== "kaprod") {
+      toast.error(
+        "Hanya Kepala Produksi / Inspector yang dapat mengunggah versi baru",
+      );
+      return;
+    }
+    setDocuments((prev) => {
+      const updated = [...prev];
+      const d = { ...updated[0], versions: [...updated[0].versions] };
+      const newV = `v${d.versions.length + 1}`;
+      d.versions.push({
+        v: newV,
+        tanggal: new Date().toLocaleDateString("id-ID", {
+          day: "2-digit",
+          month: "short",
+          year: "numeric",
+        }),
+        oleh: user!.name,
+        catatan: "Versi baru diunggah via sistem",
+      });
+      updated[0] = d;
+      addAudit(
+        "QC",
+        `Dokumen ${d.id} (${d.material})`,
+        `v${d.versions.length - 1}`,
+        newV,
+      );
+      toast.success(`Versi ${newV} berhasil diunggah untuk ${d.material}`);
+      return updated;
+    });
+  }
+
+  function handleDownloadDoc(docId: string, ver: string) {
+    const d = documents.find((x) => x.id === docId)!;
+    toast.success(`Mengunduh ${d.material} ${ver} (${d.kode})...`);
+    setPreviewState(null);
+  }
+
+  // Render page content
+  function renderPage() {
+    if (!user) return null;
+    switch (activePage) {
+      case "dashboard":
+        return <DashboardPage warehouses={warehouses} qcBatches={qcBatches} />;
+      case "produksi":
+        return (
+          <ProduksiPage
+            warehouses={warehouses}
+            onSubmit={handleProduksiSubmit}
+          />
+        );
+      case "qc":
+        return (
+          <QCPage
+            batches={qcBatches}
+            onUpdateBatch={handleQCUpdate}
+            onIssueCert={handleIssueCert}
+          />
+        );
+      case "logistik":
+        return (
+          <LogistikPage
+            shipments={shipments}
+            qcBatches={qcBatches}
+            onDispatch={handleDispatch}
+            onSimulateAnomaly={handleSimulateAnomaly}
+            onViewSuratJalan={(id) => setSuratJalanId(id)}
+          />
+        );
+      case "repositori":
+        return (
+          <RepositoriPage
+            documents={documents}
+            canUpload={
+              user.roleKey === "inspector" || user.roleKey === "kaprod"
+            }
+            onUploadVersion={handleUploadVersion}
+            onPreview={(docId, ver) => setPreviewState({ docId, ver })}
+            onDownload={handleDownloadDoc}
+          />
+        );
+      case "audit":
+        return <AuditTrailPage auditTrail={auditTrail} />;
+      default:
+        return null;
+    }
+  }
+
+  if (!user) {
+    return (
+      <>
+        <LoginPage onLogin={handleLogin} />
+        <Toaster position="top-right" richColors />
+      </>
+    );
+  }
+
+  const suratJalan = suratJalanId
+    ? shipments.find((s) => s.id === suratJalanId)
+    : null;
+  const previewDoc = previewState
+    ? documents.find((d) => d.id === previewState.docId)
+    : null;
+
+  return (
+    <>
+      <Layout
+        user={user}
+        activePage={activePage}
+        onNavigate={handleNavigate}
+        onLogout={handleLogout}
+        isOnline={isOnline}
+        onToggleConnection={handleToggleConnection}
+      >
+        {renderPage()}
+      </Layout>
+
+      {suratJalan && (
+        <SuratJalanModal
+          shipment={suratJalan}
+          onClose={() => setSuratJalanId(null)}
+        />
+      )}
+      {previewDoc && previewState && (
+        <PreviewDocModal
+          doc={previewDoc}
+          version={previewState.ver}
+          onClose={() => setPreviewState(null)}
+          onDownload={() => handleDownloadDoc(previewDoc.id, previewState.ver)}
+        />
+      )}
+
+      <Toaster position="top-right" richColors />
+    </>
+  );
+}
