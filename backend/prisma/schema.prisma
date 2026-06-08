@@ -48,6 +48,7 @@ model User {
   warehouses Warehouse[]
   workItems  WorkItem[]  @relation("AssignedTo")
   auditLogs  AuditLog[]
+  qcRecords  QCRecord[]
 }
 
 model Project {
@@ -58,7 +59,8 @@ model Project {
   endDate   DateTime?
   createdAt DateTime  @default(now())
 
-  workItems WorkItem[]
+  workItems      WorkItem[]
+  specifications Specification[]
 }
 
 model Warehouse {
@@ -87,6 +89,7 @@ model WorkItem {
   project   Project   @relation(fields: [projectId], references: [id])
   warehouse Warehouse @relation(fields: [warehouseId], references: [id])
   assignee  User?     @relation("AssignedTo", fields: [assigneeId], references: [id])
+  qcRecords QCRecord[]
 }
 
 model AuditLog {
@@ -100,4 +103,63 @@ model AuditLog {
   createdAt DateTime @default(now())
 
   user User @relation(fields: [userId], references: [id])
+}
+
+// ============================================================
+// MODUL QUALITY CONTROL (PIC: Regian)
+// ============================================================
+
+enum QCStatus {
+  PENDING
+  PASSED
+  FAILED
+}
+
+model Specification {
+  id         String   @id @default(cuid())
+  projectId  String
+  title      String
+  version    String   @default("1.0")
+  fileUrl    String
+  uploadedAt DateTime @default(now())
+
+  project   Project    @relation(fields: [projectId], references: [id])
+  qcRecords QCRecord[]
+}
+
+model QCRecord {
+  id              String   @id @default(cuid())
+  workItemId      String
+  specificationId String
+  inspectorId     String
+  status          QCStatus @default(PENDING)
+  dimensions      Json // { actual: {}, tolerance: {}, passed: bool }
+  photoUrl        String?
+  notes           String?
+  inspectedAt     DateTime @default(now())
+
+  workItem      WorkItem      @relation(fields: [workItemId], references: [id])
+  specification Specification @relation(fields: [specificationId], references: [id])
+  inspector     User          @relation(fields: [inspectorId], references: [id])
+  ncItem        NCItem?
+}
+
+model NCItem {
+  id            String    @id @default(cuid())
+  qcRecordId    String    @unique
+  defectDesc    String
+  photoUrl      String?
+  picRework     String
+  estimatedDone DateTime
+  resolvedAt    DateTime?
+
+  qcRecord QCRecord @relation(fields: [qcRecordId], references: [id])
+}
+
+model QCCertificate {
+  id         String   @id @default(cuid())
+  certNumber String   @unique
+  projectId  String
+  batchIds   String[] // array workItem IDs
+  issuedAt   DateTime @default(now())
 }
