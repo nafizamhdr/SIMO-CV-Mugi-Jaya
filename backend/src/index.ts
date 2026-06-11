@@ -4,6 +4,7 @@ import cors from "cors";
 import express from "express";
 import { Server as SocketServer } from "socket.io";
 import routes from "./routes";
+import { UPLOAD_DIR } from "./middleware/upload.middleware";
 import { errorHandler, notFoundHandler } from "./middleware/error.middleware";
 import { connectRedis } from "./lib/redis";
 import { logger } from "./lib/logger";
@@ -16,6 +17,9 @@ const frontendUrl = process.env.FRONTEND_URL ?? "http://localhost:5173";
 app.use(cors({ origin: frontendUrl, credentials: true }));
 app.use(express.json({ limit: "5mb" }));
 app.use(express.urlencoded({ extended: true }));
+
+// Static: foto dokumentasi produksi/QC (dev — nantinya AWS S3)
+app.use("/uploads", express.static(UPLOAD_DIR));
 
 // API routes
 app.use("/api", routes);

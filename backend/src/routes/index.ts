@@ -1,5 +1,6 @@
 import { Router } from "express";
 import authRoutes from "./auth.routes";
+import produksiRoutes from "./produksi.routes";
 
 const router = Router();
 
@@ -10,9 +11,9 @@ router.get("/health", (_req, res) => {
 });
 
 router.use("/auth", authRoutes);
+router.use("/produksi", produksiRoutes); // Nafiza
 
-// Module routes are mounted here by each developer in later sprints:
-//   router.use("/produksi", produksiRoutes);  // Nafiza
+// Module routes ditambahkan oleh developer lain:
 //   router.use("/qc", qcRoutes);              // Regian
 //   router.use("/logistik", logistikRoutes);  // Redomas
 
