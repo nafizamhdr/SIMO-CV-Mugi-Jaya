@@ -1,7 +1,9 @@
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
+import { Routes, Route, Navigate, useNavigate } from "react-router-dom";
 import { Toaster, toast } from "sonner";
 import { LoginPage } from "./components/LoginPage";
 import { Layout } from "./components/Layout";
+import { ForbiddenPage } from "./components/ForbiddenPage";
 import { DashboardPage } from "./components/DashboardPage";
 import { ProduksiPage } from "./components/ProduksiPage";
 import { QCPage } from "./components/QCPage";
@@ -11,27 +13,32 @@ import { AuditTrailPage } from "./components/AuditTrailPage";
 import { SuratJalanModal } from "./components/SuratJalanModal";
 import { PreviewDocModal } from "./components/PreviewDocModal";
 import {
-  ROLES,
-  MENU_DEF,
   initWarehouses,
   initQCBatches,
   initShipments,
   initDocuments,
   initAuditTrail,
-  type User,
   type PageKey,
   type Warehouse,
   type Shipment,
-  type QCBatch,
   type AuditEntry,
 } from "./components/data";
+import { useAuth } from "../hooks/useAuth";
+import {
+  ROLE_CONFIG,
+  PAGE_PATH,
+  PAGE_ALLOW,
+  menusFor,
+  defaultPageFor,
+} from "./roleConfig";
 
 let shipCounter = 78;
 let certCounter = 91;
 
 export default function App() {
-  const [user, setUser] = useState<User | null>(null);
-  const [activePage, setActivePage] = useState<PageKey>("dashboard");
+  const { user, isAuthenticated, isLoading, logout } = useAuth();
+  const navigate = useNavigate();
+
   const [isOnline, setIsOnline] = useState(true);
   const [warehouses, setWarehouses] = useState(initWarehouses());
   const [qcBatches, setQcBatches] = useState(initQCBatches());
@@ -40,17 +47,11 @@ export default function App() {
   const [auditTrail, setAuditTrail] = useState<AuditEntry[]>(initAuditTrail());
 
   const [suratJalanId, setSuratJalanId] = useState<string | null>(null);
-  const [previewState, setPreviewState] = useState<{
-    docId: string;
-    ver: string;
-  } | null>(null);
+  const [previewState, setPreviewState] = useState<{ docId: string; ver: string } | null>(null);
 
-  function addAudit(
-    aksi: string,
-    entitas: string,
-    sebelum = "—",
-    sesudah = "—",
-  ) {
+  const homePath = user ? PAGE_PATH[defaultPageFor(user.role)] : "/login";
+
+  function addAudit(aksi: string, entitas: string, sebelum = "—", sesudah = "—") {
     const now = new Date();
     const waktu =
       now.toLocaleDateString("id-ID", { day: "2-digit", month: "short" }) +
@@ -70,32 +71,12 @@ export default function App() {
     ]);
   }
 
-  function handleLogin(roleKey: string) {
-    const role = ROLES[roleKey as keyof typeof ROLES];
-    const newUser: User = {
-      roleKey: roleKey as any,
-      name: role.name,
-      short: role.short,
-      desc: role.desc,
-      menus: role.menus,
-    };
-    setUser(newUser);
-    setActivePage(role.menus[0]);
-    addAudit("Akses", `Login sebagai ${role.name}`, "—", "Login");
-    toast.success(`Selamat datang, ${role.name}!`);
-  }
-
-  function handleLogout() {
-    setUser(null);
-    toast.success("Berhasil keluar dari sistem");
-  }
-
-  function handleNavigate(page: PageKey) {
-    if (!user?.menus.includes(page)) {
-      toast.error("Akses ditolak untuk peran Anda");
-      return;
+  async function handleLogout() {
+    try {
+      await logout();
+    } finally {
+      navigate("/login", { replace: true });
     }
-    setActivePage(page);
   }
 
   function handleToggleConnection() {
@@ -131,40 +112,25 @@ export default function App() {
   }
 
   // QC
-  function handleQCUpdate(
-    batchIdx: number,
-    itemIdx: number,
-    result: "Pass" | "Fail",
-  ) {
+  function handleQCUpdate(batchIdx: number, itemIdx: number, result: "Pass" | "Fail") {
     setQcBatches((prev) => {
       const updated = prev.map((b, bi) => {
         if (bi !== batchIdx) return b;
-        const items = b.items.map((it, ii) =>
-          ii === itemIdx ? { ...it, hasil: result } : it,
-        );
+        const items = b.items.map((it, ii) => (ii === itemIdx ? { ...it, hasil: result } : it));
         return { ...b, items };
       });
       const b = updated[batchIdx];
-      addAudit(
-        "QC",
-        `${b.id} / ${b.items[itemIdx].nama}`,
-        "Pending",
-        result === "Pass" ? "PASS" : "FAIL (NCI)",
-      );
+      addAudit("QC", `${b.id} / ${b.items[itemIdx].nama}`, "Pending", result === "Pass" ? "PASS" : "FAIL (NCI)");
       return updated;
     });
     toast[result === "Pass" ? "success" : "error"](
-      result === "Pass"
-        ? "Item lolos QC"
-        : "Di luar toleransi — dicatat sebagai NCI",
+      result === "Pass" ? "Item lolos QC" : "Di luar toleransi — dicatat sebagai NCI",
     );
   }
 
   function handleIssueCert(batchIdx: number) {
     const cert = `QC-CERT-2026-${String(++certCounter).padStart(4, "0")}`;
-    setQcBatches((prev) =>
-      prev.map((b, i) => (i === batchIdx ? { ...b, certificate: cert } : b)),
-    );
+    setQcBatches((prev) => prev.map((b, i) => (i === batchIdx ? { ...b, certificate: cert } : b)));
     const b = qcBatches[batchIdx];
     addAudit("QC", `Certificate ${b.id}`, "Belum terbit", cert);
     toast.success(`QC Certificate ${cert} terbit — batch siap kirim`);
@@ -189,31 +155,20 @@ export default function App() {
       toast.info("Tidak ada pengiriman normal untuk disimulasikan");
       return;
     }
-    toast.warning(
-      `Memantau ${target.id} — terdeteksi berhenti di luar rute...`,
-    );
+    toast.warning(`Memantau ${target.id} — terdeteksi berhenti di luar rute...`);
     setTimeout(() => {
-      setShipments((prev) =>
-        prev.map((s) => (s.id === target.id ? { ...s, status: "Anomali" } : s)),
-      );
-      addAudit(
-        "Logistik",
-        `${target.id} berhenti di luar jadwal > 2 jam`,
-        "Normal",
-        "ANOMALI (keluar rute)",
-      );
-      toast.error(
-        `⚠ ${target.id} keluar rute > 2 jam! Notifikasi anomali terkirim ke Admin`,
-      );
+      setShipments((prev) => prev.map((s) => (s.id === target.id ? { ...s, status: "Anomali" } : s)));
+      addAudit("Logistik", `${target.id} berhenti di luar jadwal > 2 jam`, "Normal", "ANOMALI (keluar rute)");
+      toast.error(`⚠ ${target.id} keluar rute > 2 jam! Notifikasi anomali terkirim ke Admin`);
     }, 2000);
   }
 
   // Repositori
+  const canUpload = user?.role === "INSPECTOR_QC" || user?.role === "KEPALA_PRODUKSI";
+
   function handleUploadVersion() {
-    if (user?.roleKey !== "inspector" && user?.roleKey !== "kaprod") {
-      toast.error(
-        "Hanya Kepala Produksi / Inspector yang dapat mengunggah versi baru",
-      );
+    if (!canUpload) {
+      toast.error("Hanya Kepala Produksi / Inspector yang dapat mengunggah versi baru");
       return;
     }
     setDocuments((prev) => {
@@ -222,21 +177,12 @@ export default function App() {
       const newV = `v${d.versions.length + 1}`;
       d.versions.push({
         v: newV,
-        tanggal: new Date().toLocaleDateString("id-ID", {
-          day: "2-digit",
-          month: "short",
-          year: "numeric",
-        }),
+        tanggal: new Date().toLocaleDateString("id-ID", { day: "2-digit", month: "short", year: "numeric" }),
         oleh: user!.name,
         catatan: "Versi baru diunggah via sistem",
       });
       updated[0] = d;
-      addAudit(
-        "QC",
-        `Dokumen ${d.id} (${d.material})`,
-        `v${d.versions.length - 1}`,
-        newV,
-      );
+      addAudit("QC", `Dokumen ${d.id} (${d.material})`, `v${d.versions.length - 1}`, newV);
       toast.success(`Versi ${newV} berhasil diunggah untuk ${d.material}`);
       return updated;
     });
@@ -248,91 +194,87 @@ export default function App() {
     setPreviewState(null);
   }
 
-  // Render page content
-  function renderPage() {
-    if (!user) return null;
-    switch (activePage) {
-      case "dashboard":
-        return <DashboardPage warehouses={warehouses} qcBatches={qcBatches} />;
-      case "produksi":
-        return (
-          <ProduksiPage
-            warehouses={warehouses}
-            onSubmit={handleProduksiSubmit}
-          />
-        );
-      case "qc":
-        return (
-          <QCPage
-            batches={qcBatches}
-            onUpdateBatch={handleQCUpdate}
-            onIssueCert={handleIssueCert}
-          />
-        );
-      case "logistik":
-        return (
-          <LogistikPage
-            shipments={shipments}
-            qcBatches={qcBatches}
-            onDispatch={handleDispatch}
-            onSimulateAnomaly={handleSimulateAnomaly}
-            onViewSuratJalan={(id) => setSuratJalanId(id)}
-          />
-        );
-      case "repositori":
-        return (
-          <RepositoriPage
-            documents={documents}
-            canUpload={
-              user.roleKey === "inspector" || user.roleKey === "kaprod"
-            }
-            onUploadVersion={handleUploadVersion}
-            onPreview={(docId, ver) => setPreviewState({ docId, ver })}
-            onDownload={handleDownloadDoc}
-          />
-        );
-      case "audit":
-        return <AuditTrailPage auditTrail={auditTrail} />;
-      default:
-        return null;
-    }
-  }
-
-  if (!user) {
+  // Route guard: cek auth -> role -> render dalam shell Layout.
+  function guard(page: PageKey, content: ReactNode) {
+    if (isLoading) return null;
+    if (!isAuthenticated || !user) return <Navigate to="/login" replace />;
+    if (!PAGE_ALLOW[page].includes(user.role)) return <Navigate to="/403" replace />;
     return (
-      <>
-        <LoginPage onLogin={handleLogin} />
-        <Toaster position="top-right" richColors />
-      </>
-    );
-  }
-
-  const suratJalan = suratJalanId
-    ? shipments.find((s) => s.id === suratJalanId)
-    : null;
-  const previewDoc = previewState
-    ? documents.find((d) => d.id === previewState.docId)
-    : null;
-
-  return (
-    <>
       <Layout
-        user={user}
-        activePage={activePage}
-        onNavigate={handleNavigate}
+        userName={user.name}
+        userShort={ROLE_CONFIG[user.role].short}
+        userDesc={ROLE_CONFIG[user.role].desc}
+        menus={menusFor(user.role)}
+        activePage={page}
+        onNavigate={(p) => navigate(PAGE_PATH[p])}
         onLogout={handleLogout}
         isOnline={isOnline}
         onToggleConnection={handleToggleConnection}
       >
-        {renderPage()}
+        {content}
       </Layout>
+    );
+  }
 
-      {suratJalan && (
-        <SuratJalanModal
-          shipment={suratJalan}
-          onClose={() => setSuratJalanId(null)}
+  const suratJalan = suratJalanId ? shipments.find((s) => s.id === suratJalanId) : null;
+  const previewDoc = previewState ? documents.find((d) => d.id === previewState.docId) : null;
+
+  return (
+    <>
+      <Routes>
+        <Route
+          path="/login"
+          element={isAuthenticated ? <Navigate to={homePath} replace /> : <LoginPage />}
         />
-      )}
+        <Route path="/403" element={<ForbiddenPage />} />
+
+        <Route
+          path="/dashboard"
+          element={guard("dashboard", <DashboardPage warehouses={warehouses} qcBatches={qcBatches} />)}
+        />
+        <Route
+          path="/produksi"
+          element={guard("produksi", <ProduksiPage warehouses={warehouses} onSubmit={handleProduksiSubmit} />)}
+        />
+        <Route
+          path="/qc"
+          element={guard(
+            "qc",
+            <QCPage batches={qcBatches} onUpdateBatch={handleQCUpdate} onIssueCert={handleIssueCert} />,
+          )}
+        />
+        <Route
+          path="/logistik"
+          element={guard(
+            "logistik",
+            <LogistikPage
+              shipments={shipments}
+              qcBatches={qcBatches}
+              onDispatch={handleDispatch}
+              onSimulateAnomaly={handleSimulateAnomaly}
+              onViewSuratJalan={(id) => setSuratJalanId(id)}
+            />,
+          )}
+        />
+        <Route
+          path="/repositori"
+          element={guard(
+            "repositori",
+            <RepositoriPage
+              documents={documents}
+              canUpload={canUpload}
+              onUploadVersion={handleUploadVersion}
+              onPreview={(docId, ver) => setPreviewState({ docId, ver })}
+              onDownload={handleDownloadDoc}
+            />,
+          )}
+        />
+        <Route path="/audit" element={guard("audit", <AuditTrailPage auditTrail={auditTrail} />)} />
+
+        <Route path="*" element={<Navigate to={isAuthenticated ? homePath : "/login"} replace />} />
+      </Routes>
+
+      {suratJalan && <SuratJalanModal shipment={suratJalan} onClose={() => setSuratJalanId(null)} />}
       {previewDoc && previewState && (
         <PreviewDocModal
           doc={previewDoc}

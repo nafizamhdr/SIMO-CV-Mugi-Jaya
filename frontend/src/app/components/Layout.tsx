@@ -8,7 +8,7 @@ import {
   Shield,
   LogOut,
 } from "lucide-react";
-import type { User, PageKey } from "./data";
+import type { PageKey } from "./data";
 import { MENU_DEF } from "./data";
 
 const PAGE_ICONS: Record<PageKey, ReactNode> = {
@@ -21,7 +21,10 @@ const PAGE_ICONS: Record<PageKey, ReactNode> = {
 };
 
 interface LayoutProps {
-  user: User;
+  userName: string;
+  userShort: string;
+  userDesc: string;
+  menus: PageKey[];
   activePage: PageKey;
   onNavigate: (page: PageKey) => void;
   onLogout: () => void;
@@ -31,7 +34,10 @@ interface LayoutProps {
 }
 
 export function Layout({
-  user,
+  userName,
+  userShort,
+  userDesc,
+  menus,
   activePage,
   onNavigate,
   onLogout,
@@ -69,7 +75,7 @@ export function Layout({
 
         {/* Nav */}
         <nav className="flex-1 py-4 px-3 space-y-1 overflow-y-auto">
-          {user.menus.map((page) => {
+          {menus.map((page) => {
             const active = page === activePage;
             return (
               <button
@@ -139,13 +145,13 @@ export function Layout({
                 className="w-9 h-9 rounded-full flex items-center justify-center font-bold text-white text-sm"
                 style={{ background: "#1e3a5f" }}
               >
-                {user.short}
+                {userShort}
               </div>
               <div className="hidden sm:block">
                 <div className="text-sm font-bold text-gray-800 leading-none">
-                  {user.name}
+                  {userName}
                 </div>
-                <div className="text-[11px] text-gray-400">{user.desc}</div>
+                <div className="text-[11px] text-gray-400">{userDesc}</div>
               </div>
             </div>
           </div>
