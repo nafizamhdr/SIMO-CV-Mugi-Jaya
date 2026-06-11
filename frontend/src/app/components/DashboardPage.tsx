@@ -1,203 +1,153 @@
-import {
-  PieChart,
-  Pie,
-  Cell,
-  Legend,
-  Tooltip,
-  ResponsiveContainer,
-} from "recharts";
-import type { Warehouse, QCBatch } from "./data";
+import { useEffect, useState } from "react";
+import { PieChart, Pie, Cell, Legend, Tooltip, ResponsiveContainer } from "recharts";
+import { Loader2 } from "lucide-react";
+import { toast } from "sonner";
+import { getDashboard, type DashboardDto } from "../../services/produksi.service";
+import { getSocket } from "../../services/socket";
 
-interface Props {
-  warehouses: Warehouse[];
-  qcBatches: QCBatch[];
-}
+const COLORS = { done: "#1E7E34", inProgress: "#2E5FA3", todo: "#94a3b8" };
 
-const STATUS_COLORS: Record<string, string> = {
-  Done: "#1E7E34",
-  "In-Progress": "#2E5FA3",
-  Tertunda: "#E67E22",
-  "To-Do": "#94a3b8",
-};
+export function DashboardPage() {
+  const [data, setData] = useState<DashboardDto | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [updatedAt, setUpdatedAt] = useState<Date>(new Date());
 
-const BADGE_STYLE: Record<string, string> = {
-  Done: "bg-green-100 text-green-700",
-  "In-Progress": "bg-blue-100 text-blue-700",
-  Tertunda: "bg-orange-100 text-orange-700",
-  "To-Do": "bg-gray-100 text-gray-600",
-};
+  async function load(showToast = false) {
+    try {
+      const d = await getDashboard();
+      setData(d);
+      setUpdatedAt(new Date());
+      if (showToast) toast("Dashboard diperbarui (real-time)", { icon: "🔄" });
+    } catch {
+      toast.error("Gagal memuat dashboard");
+    } finally {
+      setLoading(false);
+    }
+  }
 
-export function DashboardPage({ warehouses, qcBatches }: Props) {
-  const aktif = warehouses.filter((w) => w.status !== "Done").length;
-  const avg = Math.round(
-    warehouses.reduce((s, w) => s + w.progress, 0) / warehouses.length,
-  );
-  const tertunda = warehouses.filter((w) => w.status === "Tertunda").length;
-  const proyekAktif = [...new Set(qcBatches.map((b) => b.proyek))].length + 5;
+  useEffect(() => {
+    void load();
+    // Real-time: refresh saat ada perubahan status work item (FR-02)
+    const socket = getSocket();
+    const handler = () => void load(true);
+    socket.on("work_item_updated", handler);
+    return () => {
+      socket.off("work_item_updated", handler);
+    };
+  }, []);
+
+  if (loading || !data) {
+    return (
+      <div className="flex items-center justify-center py-20 text-gray-400">
+        <Loader2 className="animate-spin mr-2" size={18} /> Memuat dashboard...
+      </div>
+    );
+  }
+
+  const { summary, projects, warehouses } = data;
 
   const kpis = [
+    { label: "Proyek Aktif", val: projects.length, sub: "Total proyek berjalan", color: "#1E7E34" },
+    { label: "Warehouse Aktif", val: warehouses.length, sub: "Semua online", color: "#64748b" },
+    { label: "Progres Rata-rata", val: `${summary.progress}%`, sub: `${summary.done}/${summary.total} pekerjaan selesai`, color: "#1E7E34" },
     {
-      label: "Proyek Aktif",
-      val: proyekAktif,
-      sub: "▲ 2 dari bulan lalu",
-      color: "#1E7E34",
-    },
-    {
-      label: "Warehouse Aktif",
-      val: warehouses.length,
-      sub: "Semua online",
-      color: "#64748b",
-    },
-    {
-      label: "Progres Rata-rata",
-      val: avg + "%",
-      sub: "On track",
-      color: "#1E7E34",
-    },
-    {
-      label: "Laporan Tertunda",
-      val: tertunda,
-      sub: tertunda > 0 ? "⚠ Perlu perhatian" : "Aman",
-      color: tertunda > 0 ? "#E67E22" : "#1E7E34",
+      label: "Belum Dikerjakan",
+      val: summary.todo,
+      sub: summary.todo > 0 ? "⚠ Perlu perhatian" : "Aman",
+      color: summary.todo > 0 ? "#E67E22" : "#1E7E34",
     },
   ];
 
-  const counts: Record<string, number> = {
-    Done: 0,
-    "In-Progress": 0,
-    Tertunda: 0,
-    "To-Do": 0,
-  };
-  warehouses.forEach((w) => counts[w.status]++);
-  const chartData = Object.entries(counts).map(([name, value]) => ({
-    name,
-    value,
-  }));
+  const chartData = [
+    { name: "Selesai", value: summary.done, color: COLORS.done },
+    { name: "Dikerjakan", value: summary.inProgress, color: COLORS.inProgress },
+    { name: "To-Do", value: summary.todo, color: COLORS.todo },
+  ];
+
+  const barColor = (progress: number) =>
+    progress >= 100 ? COLORS.done : progress > 0 ? COLORS.inProgress : COLORS.todo;
 
   return (
     <div className="space-y-5">
       {/* KPI Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {kpis.map((k) => (
-          <div
-            key={k.label}
-            className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm"
-          >
+          <div key={k.label} className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm">
             <div className="text-xs text-gray-500 font-semibold">{k.label}</div>
-            <div className="text-3xl font-extrabold text-gray-900 mt-1">
-              {k.val}
-            </div>
-            <div
-              className="text-[11px] font-semibold mt-1"
-              style={{ color: k.color }}
-            >
+            <div className="text-3xl font-extrabold text-gray-900 mt-1">{k.val}</div>
+            <div className="text-[11px] font-semibold mt-1" style={{ color: k.color }}>
               {k.sub}
             </div>
           </div>
         ))}
       </div>
 
-      {/* Progress + Chart */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        {/* Warehouse progress */}
+        {/* Progress per warehouse */}
         <div className="lg:col-span-2 bg-white rounded-2xl p-6 border border-gray-100 shadow-sm">
           <div className="flex items-center justify-between mb-5">
             <h3 className="font-bold text-gray-900">Progres per Warehouse</h3>
-            <span className="text-xs text-gray-400">Diperbarui baru saja</span>
+            <span className="text-xs text-gray-400">
+              Diperbarui {updatedAt.toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit", second: "2-digit" })}
+            </span>
           </div>
           <div className="space-y-4">
             {warehouses.map((w) => (
               <div key={w.id} className="flex items-center gap-4">
-                <div className="w-44 text-sm font-semibold text-gray-700 flex-shrink-0">
-                  {w.id} · {w.nama}
-                </div>
+                <div className="w-44 text-sm font-semibold text-gray-700 flex-shrink-0 truncate">{w.name}</div>
                 <div className="flex-1 h-2.5 bg-gray-100 rounded-full overflow-hidden">
                   <div
                     className="h-full rounded-full transition-all"
-                    style={{
-                      width: `${w.progress}%`,
-                      background: STATUS_COLORS[w.status],
-                    }}
+                    style={{ width: `${w.progress}%`, background: barColor(w.progress) }}
                   />
                 </div>
-                <div
-                  className="w-10 text-sm font-bold flex-shrink-0"
-                  style={{ color: STATUS_COLORS[w.status] }}
-                >
+                <div className="w-10 text-sm font-bold flex-shrink-0" style={{ color: barColor(w.progress) }}>
                   {w.progress}%
                 </div>
-                <div className="w-24 flex-shrink-0">
-                  <span
-                    className={`text-[11px] font-semibold px-2 py-1 rounded-full ${BADGE_STYLE[w.status]}`}
-                  >
-                    {w.status}
-                  </span>
-                </div>
                 <div className="w-20 text-[11px] text-gray-400 hidden xl:block">
-                  Mandor {w.mandor}
+                  {w.done}/{w.total} item
                 </div>
               </div>
             ))}
           </div>
         </div>
 
-        {/* Status doughnut chart */}
+        {/* Status doughnut */}
         <div className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm">
           <h3 className="font-bold text-gray-900 mb-4">Komposisi Status</h3>
           <ResponsiveContainer width="100%" height={220}>
             <PieChart>
-              <Pie
-                data={chartData}
-                cx="50%"
-                cy="50%"
-                innerRadius={55}
-                outerRadius={80}
-                paddingAngle={3}
-                dataKey="value"
-              >
+              <Pie data={chartData} cx="50%" cy="50%" innerRadius={55} outerRadius={80} paddingAngle={3} dataKey="value">
                 {chartData.map((entry) => (
-                  <Cell key={entry.name} fill={STATUS_COLORS[entry.name]} />
+                  <Cell key={entry.name} fill={entry.color} />
                 ))}
               </Pie>
               <Tooltip formatter={(val, name) => [val, name]} />
-              <Legend
-                iconType="circle"
-                iconSize={8}
-                wrapperStyle={{ fontSize: 11 }}
-              />
+              <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: 11 }} />
             </PieChart>
           </ResponsiveContainer>
         </div>
       </div>
 
-      {/* Recent activity */}
+      {/* Progres per proyek */}
       <div className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm">
-        <h3 className="font-bold text-gray-900 mb-4">Aktivitas Terbaru</h3>
-        <div className="space-y-3">
-          {[
-            {
-              dot: "#1E7E34",
-              text: "WH-01 Partisi Ruangan — 100% selesai",
-              time: "Hari ini, 07:30",
-            },
-            {
-              dot: "#2E5FA3",
-              text: "WH-03 Rangka Aluminium — progres 80%",
-              time: "Hari ini, 08:00",
-            },
-            {
-              dot: "#E67E22",
-              text: "WH-07 Kusen Aluminium — status tertunda",
-              time: "Kemarin, 16:45",
-            },
-          ].map((item, i) => (
-            <div key={i} className="flex items-center gap-3 text-sm">
-              <span
-                className="w-2 h-2 rounded-full flex-shrink-0"
-                style={{ background: item.dot }}
-              />
-              <span className="text-gray-700 flex-1">{item.text}</span>
-              <span className="text-xs text-gray-400">{item.time}</span>
+        <h3 className="font-bold text-gray-900 mb-4">Progres per Proyek</h3>
+        <div className="space-y-4">
+          {projects.map((p) => (
+            <div key={p.id} className="flex items-center gap-4">
+              <div className="w-48 flex-shrink-0">
+                <div className="text-sm font-semibold text-gray-700 truncate">{p.name}</div>
+                <div className="text-[11px] text-gray-400 truncate">{p.location}</div>
+              </div>
+              <div className="flex-1 h-2.5 bg-gray-100 rounded-full overflow-hidden">
+                <div
+                  className="h-full rounded-full transition-all"
+                  style={{ width: `${p.progress}%`, background: barColor(p.progress) }}
+                />
+              </div>
+              <div className="w-10 text-sm font-bold flex-shrink-0" style={{ color: barColor(p.progress) }}>
+                {p.progress}%
+              </div>
             </div>
           ))}
         </div>
