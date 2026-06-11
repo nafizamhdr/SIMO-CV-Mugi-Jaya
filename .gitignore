@@ -11,6 +11,9 @@ dist/
 **/.env
 !**/.env.example
 
+# Docs / laporan internal (tidak di-push ke repo)
+docs/
+
 # Misc
 .DS_Store
 .antigravitycli
