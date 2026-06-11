@@ -13,13 +13,11 @@ import { AuditTrailPage } from "./components/AuditTrailPage";
 import { SuratJalanModal } from "./components/SuratJalanModal";
 import { PreviewDocModal } from "./components/PreviewDocModal";
 import {
-  initWarehouses,
   initQCBatches,
   initShipments,
   initDocuments,
   initAuditTrail,
   type PageKey,
-  type Warehouse,
   type Shipment,
   type AuditEntry,
 } from "./components/data";
@@ -40,7 +38,6 @@ export default function App() {
   const navigate = useNavigate();
 
   const [isOnline, setIsOnline] = useState(true);
-  const [warehouses, setWarehouses] = useState(initWarehouses());
   const [qcBatches, setQcBatches] = useState(initQCBatches());
   const [shipments, setShipments] = useState(initShipments());
   const [documents, setDocuments] = useState(initDocuments());
@@ -87,28 +84,6 @@ export default function App() {
       });
       return next;
     });
-  }
-
-  // Produksi
-  function handleProduksiSubmit(whId: string, status: Warehouse["status"]) {
-    setWarehouses((prev) =>
-      prev.map((w) => {
-        if (w.id !== whId) return w;
-        const prevStatus = w.status;
-        const progress =
-          status === "Done"
-            ? 100
-            : status === "In-Progress"
-              ? Math.max(w.progress, 50)
-              : status === "To-Do"
-                ? 10
-                : w.progress;
-        addAudit("Produksi", whId, prevStatus, status);
-        return { ...w, status, progress };
-      }),
-    );
-    if (isOnline) toast.success("Laporan terkirim — dashboard diperbarui");
-    else toast.warning("Offline — laporan disimpan & akan disinkronkan");
   }
 
   // QC
@@ -228,14 +203,8 @@ export default function App() {
         />
         <Route path="/403" element={<ForbiddenPage />} />
 
-        <Route
-          path="/dashboard"
-          element={guard("dashboard", <DashboardPage warehouses={warehouses} qcBatches={qcBatches} />)}
-        />
-        <Route
-          path="/produksi"
-          element={guard("produksi", <ProduksiPage warehouses={warehouses} onSubmit={handleProduksiSubmit} />)}
-        />
+        <Route path="/dashboard" element={guard("dashboard", <DashboardPage />)} />
+        <Route path="/produksi" element={guard("produksi", <ProduksiPage />)} />
         <Route
           path="/qc"
           element={guard(

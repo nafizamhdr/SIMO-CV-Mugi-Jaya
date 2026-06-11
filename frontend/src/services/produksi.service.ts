@@ -1,17 +1,72 @@
 import { api, unwrap } from "./api";
-import type { ApiSuccess, Warehouse, WorkItem } from "../types";
+import type { ApiSuccess, WorkItemStatus } from "../types";
 
 /**
- * Modul Produksi API (PIC: Nafiza). Endpoint diimplementasikan pada Sprint 3.
+ * Modul Produksi API (PIC: Nafiza) — FR-01 & FR-02.
  */
-export async function getWarehouses(): Promise<Warehouse[]> {
-  const { data } = await api.get<ApiSuccess<Warehouse[]>>("/produksi/warehouses");
+
+export interface WarehouseDto {
+  id: string;
+  name: string;
+  location: string;
+  mandorId: string;
+  mandor?: { id: string; name: string };
+}
+
+export interface WorkItemDto {
+  id: string;
+  name: string;
+  description: string | null;
+  status: WorkItemStatus;
+  projectId: string;
+  warehouseId: string;
+  photoUrl: string | null;
+  updatedAt: string;
+  project?: { id: string; name: string };
+}
+
+export interface StatDto {
+  total: number;
+  done: number;
+  inProgress: number;
+  todo: number;
+  progress: number;
+}
+
+export interface DashboardDto {
+  summary: StatDto;
+  projects: (StatDto & { id: string; name: string; location: string })[];
+  warehouses: (StatDto & { id: string; name: string })[];
+}
+
+export async function getWarehouses(): Promise<WarehouseDto[]> {
+  const { data } = await api.get<ApiSuccess<WarehouseDto[]>>("/produksi/warehouses");
   return unwrap(data);
 }
 
-export async function getWorkItems(warehouseId: string): Promise<WorkItem[]> {
-  const { data } = await api.get<ApiSuccess<WorkItem[]>>("/produksi/work-items", {
+export async function getWorkItems(warehouseId: string): Promise<WorkItemDto[]> {
+  const { data } = await api.get<ApiSuccess<WorkItemDto[]>>("/produksi/work-items", {
     params: { warehouseId },
   });
+  return unwrap(data);
+}
+
+export async function updateWorkItemStatus(
+  id: string,
+  status: WorkItemStatus,
+  photo?: File | null,
+): Promise<WorkItemDto> {
+  const form = new FormData();
+  form.append("status", status);
+  if (photo) form.append("photo", photo);
+  const { data } = await api.patch<ApiSuccess<WorkItemDto>>(
+    `/produksi/work-items/${id}/status`,
+    form,
+  );
+  return unwrap(data);
+}
+
+export async function getDashboard(): Promise<DashboardDto> {
+  const { data } = await api.get<ApiSuccess<DashboardDto>>("/produksi/dashboard");
   return unwrap(data);
 }

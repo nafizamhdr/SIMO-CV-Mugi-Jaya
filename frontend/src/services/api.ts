@@ -9,10 +9,9 @@ export const REFRESH_TOKEN_KEY = "simo_refresh_token";
 
 const baseURL = import.meta.env.VITE_API_URL ?? "http://localhost:3000/api";
 
-export const api: AxiosInstance = axios.create({
-  baseURL,
-  headers: { "Content-Type": "application/json" },
-});
+// Catatan: Content-Type sengaja tidak di-set global agar Axios otomatis memakai
+// application/json untuk body objek, dan multipart/form-data (+ boundary) untuk FormData.
+export const api: AxiosInstance = axios.create({ baseURL });
 
 // Attach the access token to every request.
 api.interceptors.request.use((config) => {
