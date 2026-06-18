@@ -1,221 +1,311 @@
-import { useState } from "react";
-import { CheckCircle2, XCircle, Clock, Award } from "lucide-react";
-import type { QCBatch } from "./data";
+import { useEffect, useState } from "react";
+import { CheckCircle2, XCircle, Clock, Award, Loader2, Camera } from "lucide-react";
+import { toast } from "sonner";
+import type { QCStatus } from "../../types";
+import {
+  getProjects,
+  getInspectionItems,
+  getSpecifications,
+  getCertificates,
+  createRecord,
+  createNCItem,
+  issueCertificate,
+  type ProjectDto,
+  type InspectionItemDto,
+  type SpecificationDto,
+  type CertificateDto,
+} from "../../services/qc.service";
 
-interface Props {
-  batches: QCBatch[];
-  onUpdateBatch: (
-    batchIdx: number,
-    itemIdx: number,
-    result: "Pass" | "Fail",
-  ) => void;
-  onIssueCert: (batchIdx: number) => void;
+const DEFAULT_TOL = { p: "239-241", l: "119-121", t: "11-13" };
+const parseRange = (s: string): [number, number] => {
+  const [a, b] = s.split("-").map((x) => parseFloat(x.trim()));
+  return [a, b];
+};
+
+function statusIcon(s: QCStatus | null) {
+  if (s === "PASSED") return <CheckCircle2 size={16} className="text-green-600" />;
+  if (s === "FAILED") return <XCircle size={16} className="text-red-600" />;
+  return <Clock size={16} className="text-gray-400" />;
 }
+const statusText = (s: QCStatus | null) => (s === "PASSED" ? "LOLOS" : s === "FAILED" ? "GAGAL" : "BELUM");
 
-export function QCPage({ batches, onUpdateBatch, onIssueCert }: Props) {
-  const [selectedBatch, setSelectedBatch] = useState(0);
-  const [inspecting, setInspecting] = useState<number | null>(null);
-  const [dims, setDims] = useState({ p: "", l: "", t: "" });
+export function QCPage() {
+  const [projects, setProjects] = useState<ProjectDto[]>([]);
+  const [projectId, setProjectId] = useState("");
+  const [items, setItems] = useState<InspectionItemDto[]>([]);
+  const [specs, setSpecs] = useState<SpecificationDto[]>([]);
+  const [certs, setCerts] = useState<CertificateDto[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const batch = batches[selectedBatch];
-  const allPass = batch.items.every((i) => i.hasil === "Pass");
-  const pendingCount = batch.items.filter((i) => i.hasil === "Pending").length;
+  const [inspect, setInspect] = useState<InspectionItemDto | null>(null);
+  const [specId, setSpecId] = useState("");
+  const [actual, setActual] = useState({ p: "", l: "", t: "" });
+  const [tol, setTol] = useState(DEFAULT_TOL);
+  const [photo, setPhoto] = useState<File | null>(null);
+  const [busy, setBusy] = useState(false);
 
-  function handleValidate() {
-    if (!dims.p || !dims.l || !dims.t || inspecting === null) return;
-    const p = parseFloat(dims.p),
-      l = parseFloat(dims.l),
-      t = parseFloat(dims.t);
-    const within = (v: number, r: [number, number]) => v >= r[0] && v <= r[1];
-    const ok =
-      within(p, batch.spec.p) &&
-      within(l, batch.spec.l) &&
-      within(t, batch.spec.t);
-    onUpdateBatch(selectedBatch, inspecting, ok ? "Pass" : "Fail");
-    setInspecting(null);
-    setDims({ p: "", l: "", t: "" });
+  const [ncFor, setNcFor] = useState<string | null>(null);
+  const [nc, setNc] = useState({ defectDesc: "", picRework: "", estimatedDone: "" });
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const p = await getProjects();
+        setProjects(p);
+        if (p.length) setProjectId(p[0].id);
+      } catch {
+        toast.error("Gagal memuat proyek");
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, []);
+
+  async function loadProject(pid: string) {
+    if (!pid) return;
+    try {
+      const [it, sp, ct] = await Promise.all([getInspectionItems(pid), getSpecifications(pid), getCertificates()]);
+      setItems(it);
+      setSpecs(sp);
+      setCerts(ct.filter((c) => c.projectId === pid));
+      if (sp.length) setSpecId((prev) => prev || sp[0].id);
+    } catch {
+      toast.error("Gagal memuat data QC");
+    }
+  }
+  useEffect(() => {
+    void loadProject(projectId);
+  }, [projectId]);
+
+  function openInspect(item: InspectionItemDto) {
+    setInspect(item);
+    setActual({ p: "", l: "", t: "" });
+    setTol(DEFAULT_TOL);
+    setPhoto(null);
+    setNcFor(null);
+    if (specs.length) setSpecId(specs[0].id);
   }
 
-  const itemIcon = (hasil: string) => {
-    if (hasil === "Pass")
-      return <CheckCircle2 size={16} className="text-green-600" />;
-    if (hasil === "Fail") return <XCircle size={16} className="text-red-600" />;
-    return <Clock size={16} className="text-gray-400" />;
-  };
+  async function submitInspection() {
+    if (!inspect || !specId) {
+      toast.error("Pilih spesifikasi dahulu");
+      return;
+    }
+    if (!actual.p || !actual.l || !actual.t) {
+      toast.error("Lengkapi dimensi P/L/T");
+      return;
+    }
+    setBusy(true);
+    try {
+      const dimensions = {
+        actual: { p: parseFloat(actual.p), l: parseFloat(actual.l), t: parseFloat(actual.t) },
+        tolerance: { p: parseRange(tol.p), l: parseRange(tol.l), t: parseRange(tol.t) },
+      };
+      const rec = await createRecord({ workItemId: inspect.id, specificationId: specId, dimensions, photo });
+      if (rec.status === "PASSED") {
+        toast.success("Item LOLOS QC");
+        setInspect(null);
+      } else {
+        toast.error("Di luar toleransi — catat sebagai NCI");
+        setNcFor(rec.id); // tampilkan form NCI
+      }
+      await loadProject(projectId);
+    } catch {
+      toast.error("Gagal menyimpan inspeksi");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function submitNC() {
+    if (!ncFor || !nc.defectDesc || !nc.picRework || !nc.estimatedDone) {
+      toast.error("Lengkapi data NCI");
+      return;
+    }
+    setBusy(true);
+    try {
+      await createNCItem({ qcRecordId: ncFor, ...nc });
+      toast.success("Non-Conforming Item dicatat");
+      setNcFor(null);
+      setInspect(null);
+      setNc({ defectDesc: "", picRework: "", estimatedDone: "" });
+    } catch {
+      toast.error("Gagal mencatat NCI");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleIssueCert() {
+    setBusy(true);
+    try {
+      const cert = await issueCertificate(projectId, items.map((i) => i.id));
+      toast.success(`Certificate ${cert.certNumber} terbit — batch siap kirim`);
+      await loadProject(projectId);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Gagal menerbitkan certificate");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-20 text-gray-400">
+        <Loader2 className="animate-spin mr-2" size={18} /> Memuat...
+      </div>
+    );
+  }
+
+  const allPassed = items.length > 0 && items.every((i) => i.qcStatus === "PASSED");
+  const pending = items.filter((i) => i.qcStatus !== "PASSED").length;
 
   return (
     <div className="space-y-4">
-      {/* Batch selector */}
+      {/* Pilih proyek (batch) */}
       <div className="bg-white rounded-2xl p-4 border border-gray-100 shadow-sm flex items-center gap-4">
-        <label className="text-sm font-semibold text-gray-700">
-          Pilih Batch:
-        </label>
+        <label className="text-sm font-semibold text-gray-700">Pilih Batch (Proyek):</label>
         <select
-          value={selectedBatch}
-          onChange={(e) => {
-            setSelectedBatch(+e.target.value);
-            setInspecting(null);
-          }}
+          value={projectId}
+          onChange={(e) => { setProjectId(e.target.value); setInspect(null); }}
           className="h-10 border border-gray-300 rounded-lg px-3 text-sm outline-none"
         >
-          {batches.map((b, i) => (
-            <option key={b.id} value={i}>
-              {b.id} · {b.produk}
-            </option>
+          {projects.map((p) => (
+            <option key={p.id} value={p.id}>{p.name}</option>
           ))}
         </select>
-        <div className="ml-auto text-xs text-gray-400">
-          {pendingCount} item belum diinspeksi
-        </div>
+        <div className="ml-auto text-xs text-gray-400">{pending} item belum lolos</div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        {/* Main inspection area */}
+        {/* Area inspeksi */}
         <div className="lg:col-span-2 bg-white rounded-2xl p-6 border border-gray-100 shadow-sm">
-          <div className="mb-4">
-            <h3 className="font-bold text-gray-900">
-              {batch.id} — {batch.produk}
-            </h3>
-            <p className="text-sm text-gray-400">Proyek {batch.proyek}</p>
-            <p
-              className="text-xs text-gray-400 mt-1"
-              style={{ fontFamily: "'JetBrains Mono', monospace" }}
-            >
-              Toleransi → P:{batch.spec.p[0]}-{batch.spec.p[1]} · L:
-              {batch.spec.l[0]}-{batch.spec.l[1]} · T:{batch.spec.t[0]}-
-              {batch.spec.t[1]}
-            </p>
-          </div>
-
-          {inspecting !== null ? (
-            <div className="border-t border-gray-100 pt-4">
-              <div className="text-sm font-semibold text-gray-700 mb-4">
-                Inspeksi: {batch.items[inspecting].nama}
+          {!inspect ? (
+            <div className="text-sm text-gray-400 py-8 text-center border border-dashed border-gray-200 rounded-xl">
+              Pilih item di samping untuk memulai inspeksi (checklist QC + toleransi).
+            </div>
+          ) : ncFor ? (
+            // Form NCI (FR-06)
+            <div>
+              <div className="flex items-center gap-2 mb-4 text-red-600 font-bold">
+                <XCircle size={18} /> Non-Conforming Item — {inspect.name}
               </div>
+              <textarea
+                placeholder="Deskripsi cacat / penyimpangan..."
+                value={nc.defectDesc}
+                onChange={(e) => setNc({ ...nc, defectDesc: e.target.value })}
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm mb-3 resize-none"
+                rows={2}
+              />
+              <div className="grid grid-cols-2 gap-3 mb-4">
+                <input
+                  placeholder="PIC Rework"
+                  value={nc.picRework}
+                  onChange={(e) => setNc({ ...nc, picRework: e.target.value })}
+                  className="h-10 border border-gray-300 rounded-lg px-3 text-sm"
+                />
+                <input
+                  type="date"
+                  value={nc.estimatedDone}
+                  onChange={(e) => setNc({ ...nc, estimatedDone: e.target.value })}
+                  className="h-10 border border-gray-300 rounded-lg px-3 text-sm"
+                />
+              </div>
+              <button
+                onClick={submitNC}
+                disabled={busy}
+                className="w-full h-11 rounded-xl text-white font-bold text-sm disabled:opacity-50"
+                style={{ background: "#E67E22" }}
+              >
+                Simpan NCI
+              </button>
+            </div>
+          ) : (
+            // Form inspeksi (FR-04)
+            <div>
+              <div className="text-sm font-semibold text-gray-700 mb-3">Inspeksi: {inspect.name}</div>
+              <label className="text-xs font-semibold text-gray-600">Spesifikasi</label>
+              <select
+                value={specId}
+                onChange={(e) => setSpecId(e.target.value)}
+                className="w-full h-10 border border-gray-300 rounded-lg px-3 text-sm mb-4 mt-1"
+              >
+                {specs.length === 0 && <option value="">(belum ada spesifikasi)</option>}
+                {specs.map((s) => (
+                  <option key={s.id} value={s.id}>{s.title} ({s.version})</option>
+                ))}
+              </select>
+
               <div className="grid grid-cols-3 gap-3 mb-4">
-                {[
-                  { key: "p", label: "Panjang (cm)", range: batch.spec.p },
-                  { key: "l", label: "Lebar (cm)", range: batch.spec.l },
-                  { key: "t", label: "Tebal (mm)", range: batch.spec.t },
-                ].map(({ key, label, range }) => (
-                  <div key={key}>
+                {(["p", "l", "t"] as const).map((k) => (
+                  <div key={k}>
                     <label className="text-xs font-semibold text-gray-600">
-                      {label}
+                      {k === "p" ? "Panjang" : k === "l" ? "Lebar" : "Tebal"}
                     </label>
                     <input
-                      type="number"
-                      step="0.1"
-                      value={dims[key as keyof typeof dims]}
-                      onChange={(e) =>
-                        setDims({ ...dims, [key]: e.target.value })
-                      }
-                      className="mt-1 w-full h-10 border border-gray-300 rounded-lg px-3 text-sm outline-none focus:border-blue-600"
-                      style={{ fontFamily: "'JetBrains Mono', monospace" }}
-                      placeholder="0.0"
+                      type="number" step="0.1" placeholder="aktual"
+                      value={actual[k]}
+                      onChange={(e) => setActual({ ...actual, [k]: e.target.value })}
+                      className="mt-1 w-full h-10 border border-gray-300 rounded-lg px-2 text-sm"
                     />
-                    <div className="text-[10px] text-gray-400 mt-1">
-                      Target: {range[0]}-{range[1]}
-                    </div>
+                    <input
+                      value={tol[k]}
+                      onChange={(e) => setTol({ ...tol, [k]: e.target.value })}
+                      className="mt-1 w-full h-8 border border-gray-200 rounded-lg px-2 text-[11px] text-gray-500"
+                      title="toleransi min-max"
+                    />
                   </div>
                 ))}
               </div>
+
+              <label className="flex items-center gap-2 text-sm text-gray-600 mb-4 cursor-pointer">
+                <Camera size={16} />
+                <span>{photo ? photo.name : "Foto bukti (opsional)"}</span>
+                <input type="file" accept="image/*" className="hidden" onChange={(e) => setPhoto(e.target.files?.[0] ?? null)} />
+              </label>
+
               <div className="flex gap-3">
-                <button
-                  onClick={handleValidate}
-                  className="flex-1 h-10 rounded-lg text-white font-bold text-sm"
-                  style={{ background: "#1E7E34" }}
-                >
-                  Validasi & Submit
+                <button onClick={submitInspection} disabled={busy} className="flex-1 h-11 rounded-xl text-white font-bold text-sm disabled:opacity-50" style={{ background: "#1E7E34" }}>
+                  {busy ? "Memvalidasi..." : "Validasi & Simpan"}
                 </button>
-                <button
-                  onClick={() => setInspecting(null)}
-                  className="flex-1 h-10 rounded-lg border border-gray-300 text-gray-600 font-semibold text-sm"
-                >
-                  Batal
-                </button>
+                <button onClick={() => setInspect(null)} className="flex-1 h-11 rounded-xl border border-gray-300 text-gray-600 font-semibold text-sm">Batal</button>
               </div>
-            </div>
-          ) : (
-            <div className="text-sm text-gray-400 py-4 text-center border border-dashed border-gray-200 rounded-xl">
-              Pilih item "Pending" di samping untuk memulai inspeksi
             </div>
           )}
         </div>
 
-        {/* Item list + certificate */}
+        {/* Daftar item + certificate */}
         <div className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm">
           <h3 className="font-bold text-gray-900 mb-3">Status Batch</h3>
           <div className="space-y-2 mb-5">
-            {batch.items.map((item, i) => (
-              <div
-                key={i}
-                className={`flex items-center gap-3 p-3 rounded-lg ${
-                  item.hasil === "Pass"
-                    ? "bg-green-50"
-                    : item.hasil === "Fail"
-                      ? "bg-red-50"
-                      : "bg-gray-50"
-                }`}
-              >
-                {itemIcon(item.hasil)}
-                <span className="text-sm font-semibold text-gray-700 flex-1">
-                  {item.nama}
-                </span>
-                <span
-                  className={`text-xs font-bold ${
-                    item.hasil === "Pass"
-                      ? "text-green-600"
-                      : item.hasil === "Fail"
-                        ? "text-red-600"
-                        : "text-gray-400"
-                  }`}
-                >
-                  {item.hasil.toUpperCase()}
-                </span>
-                {item.hasil === "Pending" && (
-                  <button
-                    onClick={() => setInspecting(i)}
-                    className="text-xs font-semibold text-blue-600 hover:text-blue-800"
-                  >
-                    Inspeksi ▸
-                  </button>
+            {items.map((it) => (
+              <div key={it.id} className={`flex items-center gap-2 p-2.5 rounded-lg ${it.qcStatus === "PASSED" ? "bg-green-50" : it.qcStatus === "FAILED" ? "bg-red-50" : "bg-gray-50"}`}>
+                {statusIcon(it.qcStatus)}
+                <span className="text-sm font-semibold text-gray-700 flex-1 truncate">{it.name}</span>
+                <span className={`text-[11px] font-bold ${it.qcStatus === "PASSED" ? "text-green-600" : it.qcStatus === "FAILED" ? "text-red-600" : "text-gray-400"}`}>{statusText(it.qcStatus)}</span>
+                {it.qcStatus !== "PASSED" && (
+                  <button onClick={() => openInspect(it)} className="text-[11px] font-semibold text-blue-600 hover:text-blue-800">Inspeksi ▸</button>
                 )}
               </div>
             ))}
           </div>
 
-          {/* Certificate area */}
-          {batch.certificate ? (
-            <div className="p-4 rounded-xl bg-green-50 border border-green-200">
-              <div className="flex items-center gap-2 mb-1">
-                <Award size={16} className="text-green-600" />
-                <div className="text-xs text-gray-500 font-semibold">
-                  QC Certificate
-                </div>
-              </div>
-              <div
-                className="text-sm font-bold text-green-700"
-                style={{ fontFamily: "'JetBrains Mono', monospace" }}
-              >
-                {batch.certificate}
-              </div>
-              <div className="text-[11px] text-green-600 mt-1">
-                ✓ Batch siap untuk pengiriman
-              </div>
+          {certs.length > 0 && (
+            <div className="p-3 rounded-xl bg-green-50 border border-green-200 mb-3">
+              <div className="flex items-center gap-2 mb-1"><Award size={15} className="text-green-600" /><span className="text-xs text-gray-500 font-semibold">QC Certificate</span></div>
+              {certs.map((c) => (
+                <div key={c.id} className="text-sm font-bold text-green-700 font-mono">{c.certNumber}</div>
+              ))}
             </div>
-          ) : allPass ? (
-            <button
-              onClick={() => onIssueCert(selectedBatch)}
-              className="w-full h-10 rounded-xl text-white font-bold text-sm"
-              style={{ background: "#1E7E34" }}
-            >
+          )}
+
+          {allPassed ? (
+            <button onClick={handleIssueCert} disabled={busy} className="w-full h-10 rounded-xl text-white font-bold text-sm disabled:opacity-50" style={{ background: "#1E7E34" }}>
               Terbitkan QC Certificate
             </button>
           ) : (
-            <div className="p-4 rounded-xl bg-gray-50 border border-dashed border-gray-300 text-center">
-              <div className="text-xs font-semibold text-gray-500">
-                🔒 Terkunci — masih ada {pendingCount} item belum lolos
-              </div>
+            <div className="p-3 rounded-xl bg-gray-50 border border-dashed border-gray-300 text-center text-xs font-semibold text-gray-500">
+              🔒 Terkunci — {pending} item belum lolos
             </div>
           )}
         </div>

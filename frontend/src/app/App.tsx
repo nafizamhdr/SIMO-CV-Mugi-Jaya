@@ -205,13 +205,7 @@ export default function App() {
 
         <Route path="/dashboard" element={guard("dashboard", <DashboardPage />)} />
         <Route path="/produksi" element={guard("produksi", <ProduksiPage />)} />
-        <Route
-          path="/qc"
-          element={guard(
-            "qc",
-            <QCPage batches={qcBatches} onUpdateBatch={handleQCUpdate} onIssueCert={handleIssueCert} />,
-          )}
-        />
+        <Route path="/qc" element={guard("qc", <QCPage />)} />
         <Route
           path="/logistik"
           element={guard(
@@ -225,19 +219,7 @@ export default function App() {
             />,
           )}
         />
-        <Route
-          path="/repositori"
-          element={guard(
-            "repositori",
-            <RepositoriPage
-              documents={documents}
-              canUpload={canUpload}
-              onUploadVersion={handleUploadVersion}
-              onPreview={(docId, ver) => setPreviewState({ docId, ver })}
-              onDownload={handleDownloadDoc}
-            />,
-          )}
-        />
+        <Route path="/repositori" element={guard("repositori", <RepositoriPage canUpload={canUpload} />)} />
         <Route path="/audit" element={guard("audit", <AuditTrailPage auditTrail={auditTrail} />)} />
 
         <Route path="*" element={<Navigate to={isAuthenticated ? homePath : "/login"} replace />} />
