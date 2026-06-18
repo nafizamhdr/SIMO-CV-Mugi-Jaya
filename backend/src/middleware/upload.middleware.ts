@@ -1,6 +1,7 @@
 import path from "path";
 import fs from "fs";
 import multer from "multer";
+import { HttpError } from "../utils/apiResponse";
 
 /**
  * Penyimpanan foto (dev): simpan ke folder lokal `backend/uploads/`.
@@ -21,16 +22,29 @@ const storage = multer.diskStorage({
   },
 });
 
-function fileFilter(_req: unknown, file: Express.Multer.File, cb: multer.FileFilterCallback) {
+function imageFilter(_req: unknown, file: Express.Multer.File, cb: multer.FileFilterCallback) {
   if (file.mimetype.startsWith("image/")) cb(null, true);
-  else cb(new Error("File harus berupa gambar"));
+  else cb(new HttpError(422, "File harus berupa gambar"));
 }
 
-export const upload = multer({
-  storage,
-  fileFilter,
-  limits: { fileSize: 5 * 1024 * 1024 }, // 5 MB
-});
+const DOC_TYPES = [
+  "application/pdf",
+  "application/msword",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  "application/vnd.ms-excel",
+  "application/octet-stream",
+];
+
+function docFilter(_req: unknown, file: Express.Multer.File, cb: multer.FileFilterCallback) {
+  if (file.mimetype.startsWith("image/") || DOC_TYPES.includes(file.mimetype)) cb(null, true);
+  else cb(new HttpError(422, "File harus berupa PDF, dokumen, atau gambar"));
+}
+
+/** Upload foto (gambar saja) — dipakai Produksi & QC photo. */
+export const upload = multer({ storage, fileFilter: imageFilter, limits: { fileSize: 5 * 1024 * 1024 } });
+
+/** Upload dokumen (PDF/blueprint/spesifikasi) — dipakai repositori QC (FR-12). */
+export const uploadDoc = multer({ storage, fileFilter: docFilter, limits: { fileSize: 15 * 1024 * 1024 } });
 
 /** Bangun URL publik dari nama file yang tersimpan. */
 export function publicUrl(filename: string): string {

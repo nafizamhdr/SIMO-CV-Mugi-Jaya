@@ -1,177 +1,187 @@
-import { useState } from "react";
-import { Search, Download, Eye, Plus, FileText } from "lucide-react";
-import type { Document } from "./data";
+import { useEffect, useRef, useState } from "react";
+import { Search, Download, Plus, FileText, Loader2, X } from "lucide-react";
+import { toast } from "sonner";
+import {
+  getSpecifications,
+  getProjects,
+  uploadSpecification,
+  type SpecificationDto,
+  type ProjectDto,
+} from "../../services/qc.service";
+
+const API_ORIGIN = import.meta.env.VITE_SOCKET_URL ?? "http://localhost:3000";
 
 interface Props {
-  documents: Document[];
   canUpload: boolean;
-  onUploadVersion: () => void;
-  onPreview: (docId: string, ver: string) => void;
-  onDownload: (docId: string, ver: string) => void;
 }
 
-const TIPE_STYLE: Record<string, string> = {
-  Blueprint: "bg-blue-100 text-blue-700",
-  Spesifikasi: "bg-green-100 text-green-700",
-};
-
-export function RepositoriPage({
-  documents,
-  canUpload,
-  onUploadVersion,
-  onPreview,
-  onDownload,
-}: Props) {
+export function RepositoriPage({ canUpload }: Props) {
+  const [specs, setSpecs] = useState<SpecificationDto[]>([]);
+  const [projects, setProjects] = useState<ProjectDto[]>([]);
+  const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState("");
 
-  const filtered = documents.filter(
-    (d) =>
-      d.kode.toLowerCase().includes(query.toLowerCase()) ||
-      d.material.toLowerCase().includes(query.toLowerCase()) ||
-      d.proyek.toLowerCase().includes(query.toLowerCase()),
+  const [showForm, setShowForm] = useState(false);
+  const [form, setForm] = useState({ projectId: "", title: "", version: "1.0" });
+  const [file, setFile] = useState<File | null>(null);
+  const [busy, setBusy] = useState(false);
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  async function load() {
+    try {
+      setSpecs(await getSpecifications());
+      if (canUpload) {
+        const p = await getProjects();
+        setProjects(p);
+        setForm((f) => ({ ...f, projectId: f.projectId || p[0]?.id || "" }));
+      }
+    } catch {
+      toast.error("Gagal memuat repositori");
+    } finally {
+      setLoading(false);
+    }
+  }
+  useEffect(() => {
+    void load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  async function handleUpload() {
+    if (!form.projectId || !form.title || !file) {
+      toast.error("Lengkapi proyek, judul, dan file");
+      return;
+    }
+    setBusy(true);
+    try {
+      await uploadSpecification({ ...form, file });
+      toast.success("Spesifikasi diunggah");
+      setShowForm(false);
+      setForm({ projectId: projects[0]?.id ?? "", title: "", version: "1.0" });
+      setFile(null);
+      await load();
+    } catch {
+      toast.error("Gagal mengunggah spesifikasi");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function handleDownload(spec: SpecificationDto) {
+    if (spec.fileUrl.startsWith("/uploads")) {
+      window.open(`${API_ORIGIN}${spec.fileUrl}`, "_blank");
+    } else {
+      toast.info("File tersimpan di cloud (S3) — demo, tidak dapat diunduh");
+    }
+  }
+
+  const filtered = specs.filter(
+    (s) =>
+      s.title.toLowerCase().includes(query.toLowerCase()) ||
+      (s.project?.name ?? "").toLowerCase().includes(query.toLowerCase()),
   );
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-20 text-gray-400">
+        <Loader2 className="animate-spin mr-2" size={18} /> Memuat...
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-4">
       {/* Search + upload */}
       <div className="bg-white rounded-2xl p-4 border border-gray-100 shadow-sm flex items-center gap-3">
         <div className="relative flex-1">
-          <Search
-            size={16}
-            className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
-          />
+          <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
           <input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Cari berdasarkan kode proyek atau nama material..."
+            placeholder="Cari spesifikasi atau proyek..."
             className="w-full h-11 border border-gray-300 rounded-xl pl-10 pr-3 text-sm outline-none focus:border-blue-600"
           />
         </div>
         {canUpload ? (
           <button
-            onClick={onUploadVersion}
+            onClick={() => setShowForm((v) => !v)}
             className="h-11 px-4 rounded-xl text-white font-bold text-sm flex items-center gap-2"
             style={{ background: "linear-gradient(135deg,#1F3864,#2E5FA3)" }}
           >
-            <Plus size={16} />
-            Versi Baru
+            {showForm ? <X size={16} /> : <Plus size={16} />}
+            {showForm ? "Tutup" : "Unggah Spesifikasi"}
           </button>
         ) : (
-          <span className="text-xs text-gray-400 px-2">
-            Mode baca (read-only)
-          </span>
+          <span className="text-xs text-gray-400 px-2">Mode baca (read-only)</span>
         )}
       </div>
 
-      {/* Document grid */}
-      {filtered.length === 0 ? (
-        <div className="text-center text-gray-400 text-sm py-16 bg-white rounded-2xl border border-gray-100">
-          Tidak ada dokumen yang cocok.
+      {/* Form upload */}
+      {showForm && canUpload && (
+        <div className="bg-white rounded-2xl p-5 border-2 border-blue-200 shadow-sm space-y-3">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            <select
+              value={form.projectId}
+              onChange={(e) => setForm({ ...form, projectId: e.target.value })}
+              className="h-11 border border-gray-300 rounded-xl px-3 text-sm"
+            >
+              {projects.map((p) => (
+                <option key={p.id} value={p.id}>{p.name}</option>
+              ))}
+            </select>
+            <input
+              placeholder="Judul spesifikasi"
+              value={form.title}
+              onChange={(e) => setForm({ ...form, title: e.target.value })}
+              className="h-11 border border-gray-300 rounded-xl px-3 text-sm md:col-span-1"
+            />
+            <input
+              placeholder="Versi (mis. 1.0)"
+              value={form.version}
+              onChange={(e) => setForm({ ...form, version: e.target.value })}
+              className="h-11 border border-gray-300 rounded-xl px-3 text-sm"
+            />
+          </div>
+          <div className="flex items-center gap-3">
+            <input ref={fileRef} type="file" accept=".pdf,image/*" className="hidden" onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
+            <button onClick={() => fileRef.current?.click()} className="h-11 px-4 rounded-xl border border-gray-300 text-sm font-semibold text-gray-700">
+              {file ? file.name : "Pilih File (PDF/gambar)"}
+            </button>
+            <button onClick={handleUpload} disabled={busy} className="h-11 px-5 rounded-xl text-white font-bold text-sm disabled:opacity-50 ml-auto" style={{ background: "#1E7E34" }}>
+              {busy ? "Mengunggah..." : "Unggah"}
+            </button>
+          </div>
         </div>
+      )}
+
+      {/* Daftar spesifikasi */}
+      {filtered.length === 0 ? (
+        <div className="text-center text-gray-400 text-sm py-16 bg-white rounded-2xl border border-gray-100">Tidak ada dokumen yang cocok.</div>
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          {filtered.map((doc) => {
-            const latest = doc.versions[doc.versions.length - 1];
-            const reversedVersions = [...doc.versions].reverse();
-            return (
-              <div
-                key={doc.id}
-                className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm"
-              >
-                {/* Header */}
-                <div className="flex items-start justify-between mb-3">
+          {filtered.map((spec) => (
+            <div key={spec.id} className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm">
+              <div className="flex items-start justify-between mb-3">
+                <div className="flex items-center gap-2">
+                  <FileText size={16} className="text-gray-400" />
                   <div>
-                    <div className="flex items-center gap-2 mb-1">
-                      <FileText size={15} className="text-gray-400" />
-                      <h3 className="font-bold text-gray-900">
-                        {doc.material}
-                      </h3>
-                      <span
-                        className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${TIPE_STYLE[doc.tipe] || "bg-gray-100 text-gray-600"}`}
-                      >
-                        {doc.tipe}
-                      </span>
-                    </div>
-                    <div className="text-xs text-gray-400">
-                      {doc.proyek} ·{" "}
-                      <span
-                        style={{ fontFamily: "'JetBrains Mono', monospace" }}
-                      >
-                        {doc.kode}
-                      </span>
-                    </div>
-                  </div>
-                  <span
-                    className="text-xs font-bold text-gray-300"
-                    style={{ fontFamily: "'JetBrains Mono', monospace" }}
-                  >
-                    {doc.id}
-                  </span>
-                </div>
-
-                {/* Version history */}
-                <div className="bg-gray-50 rounded-xl p-3 mb-3">
-                  <div className="text-[11px] font-bold text-gray-400 uppercase tracking-wide mb-2">
-                    Riwayat Versi (Versioning)
-                  </div>
-                  <div className="space-y-0">
-                    {reversedVersions.map((v) => {
-                      const isLatest = v.v === latest.v;
-                      return (
-                        <div
-                          key={v.v}
-                          className="flex items-center gap-2 text-xs py-1.5 border-t border-gray-100 first:border-t-0"
-                        >
-                          <span
-                            className="font-bold w-6"
-                            style={{
-                              fontFamily: "'JetBrains Mono', monospace",
-                              color: isLatest ? "#2E5FA3" : "#94a3b8",
-                            }}
-                          >
-                            {v.v}
-                          </span>
-                          <span className="text-gray-500">{v.tanggal}</span>
-                          <span className="text-gray-400">· {v.catatan}</span>
-                          {isLatest ? (
-                            <span className="ml-auto text-[10px] font-bold text-blue-600">
-                              TERBARU
-                            </span>
-                          ) : (
-                            <button
-                              onClick={() => onPreview(doc.id, v.v)}
-                              className="ml-auto text-[11px] text-blue-500 font-semibold hover:text-blue-700"
-                            >
-                              Lihat
-                            </button>
-                          )}
-                        </div>
-                      );
-                    })}
+                    <h3 className="font-bold text-gray-900">{spec.title}</h3>
+                    <div className="text-xs text-gray-400">{spec.project?.name ?? spec.projectId}</div>
                   </div>
                 </div>
-
-                {/* Actions */}
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => onPreview(doc.id, latest.v)}
-                    className="flex-1 h-10 rounded-lg text-sm font-semibold border border-gray-200 text-gray-700 hover:bg-gray-50 flex items-center justify-center gap-1.5"
-                  >
-                    <Eye size={14} />
-                    Preview {latest.v}
-                  </button>
-                  <button
-                    onClick={() => onDownload(doc.id, latest.v)}
-                    className="flex-1 h-10 rounded-lg text-sm font-semibold text-white flex items-center justify-center gap-1.5"
-                    style={{ background: "#1E7E34" }}
-                  >
-                    <Download size={14} />
-                    Unduh
-                  </button>
-                </div>
+                <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-blue-100 text-blue-700">v{spec.version}</span>
               </div>
-            );
-          })}
+              <div className="text-[11px] text-gray-400 mb-3">
+                Diunggah {new Date(spec.uploadedAt).toLocaleDateString("id-ID", { day: "2-digit", month: "short", year: "numeric" })}
+              </div>
+              <button
+                onClick={() => handleDownload(spec)}
+                className="w-full h-10 rounded-lg text-sm font-semibold text-white flex items-center justify-center gap-1.5"
+                style={{ background: "#1E7E34" }}
+              >
+                <Download size={14} /> Unduh / Buka
+              </button>
+            </div>
+          ))}
         </div>
       )}
     </div>
