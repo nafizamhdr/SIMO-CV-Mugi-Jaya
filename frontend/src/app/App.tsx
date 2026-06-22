@@ -14,11 +14,15 @@ import { SuratJalanModal } from "./components/SuratJalanModal";
 import { type PageKey } from "./components/data";
 import type { ShipmentDto } from "../services/logistik.service";
 import { useAuth } from "../hooks/useAuth";
+import { useRealtimeNotifications } from "../hooks/useRealtimeNotifications";
 import { ROLE_CONFIG, PAGE_PATH, PAGE_ALLOW, menusFor, defaultPageFor } from "./roleConfig";
 
 export default function App() {
   const { user, isAuthenticated, isLoading, logout } = useAuth();
   const navigate = useNavigate();
+
+  // FR-10 — notifikasi anomali real-time ke Admin/Owner
+  useRealtimeNotifications(user?.role);
 
   const [isOnline, setIsOnline] = useState(true);
   const [suratJalan, setSuratJalan] = useState<ShipmentDto | null>(null);
