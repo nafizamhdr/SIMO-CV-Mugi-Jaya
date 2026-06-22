@@ -71,6 +71,33 @@ export async function updateWorkItemStatus({ workItemId, status, photoUrl, userI
 }
 
 /**
+ * Notifikasi keterlambatan produksi (FR-03).
+ * Work item dianggap terlambat bila belum DONE dan tidak ada pembaruan
+ * melewati ambang batas (default 48 jam).
+ */
+export async function getLateWorkItems(thresholdHours = 48) {
+  const threshold = new Date(Date.now() - thresholdHours * 60 * 60 * 1000);
+  const items = await prisma.workItem.findMany({
+    where: { status: { not: "DONE" }, updatedAt: { lt: threshold } },
+    orderBy: { updatedAt: "asc" },
+    include: {
+      warehouse: { select: { id: true, name: true } },
+      project: { select: { id: true, name: true } },
+    },
+  });
+
+  return items.map((it) => ({
+    id: it.id,
+    name: it.name,
+    status: it.status,
+    warehouse: it.warehouse.name,
+    project: it.project.name,
+    updatedAt: it.updatedAt,
+    hoursLate: Math.floor((Date.now() - it.updatedAt.getTime()) / (60 * 60 * 1000)),
+  }));
+}
+
+/**
  * Agregasi progres produksi per project & warehouse (FR-02).
  * Progress = persentase work item berstatus DONE.
  */

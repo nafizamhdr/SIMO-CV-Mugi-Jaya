@@ -70,3 +70,20 @@ export async function getDashboard(): Promise<DashboardDto> {
   const { data } = await api.get<ApiSuccess<DashboardDto>>("/produksi/dashboard");
   return unwrap(data);
 }
+
+export interface LateItemDto {
+  id: string;
+  name: string;
+  status: WorkItemStatus;
+  warehouse: string;
+  project: string;
+  hoursLate: number;
+}
+
+/** FR-03 — notifikasi keterlambatan produksi. */
+export async function getNotifications(thresholdHours = 48): Promise<LateItemDto[]> {
+  const { data } = await api.get<ApiSuccess<LateItemDto[]>>("/produksi/notifications", {
+    params: { thresholdHours },
+  });
+  return unwrap(data);
+}

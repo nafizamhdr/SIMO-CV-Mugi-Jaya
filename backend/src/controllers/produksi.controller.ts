@@ -55,3 +55,14 @@ export async function getDashboard(_req: AuthRequest, res: Response, next: NextF
     next(error);
   }
 }
+
+// FR-03 — notifikasi keterlambatan produksi
+export async function getNotifications(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const threshold = req.query.thresholdHours ? Number(req.query.thresholdHours) : 48;
+    const data = await produksiService.getLateWorkItems(Number.isFinite(threshold) ? threshold : 48);
+    sendSuccess(res, data);
+  } catch (error) {
+    next(error);
+  }
+}

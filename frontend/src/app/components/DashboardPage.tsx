@@ -1,21 +1,23 @@
 import { useEffect, useState } from "react";
 import { PieChart, Pie, Cell, Legend, Tooltip, ResponsiveContainer } from "recharts";
-import { Loader2 } from "lucide-react";
+import { Loader2, AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
-import { getDashboard, type DashboardDto } from "../../services/produksi.service";
+import { getDashboard, getNotifications, type DashboardDto, type LateItemDto } from "../../services/produksi.service";
 import { getSocket } from "../../services/socket";
 
 const COLORS = { done: "#1E7E34", inProgress: "#2E5FA3", todo: "#94a3b8" };
 
 export function DashboardPage() {
   const [data, setData] = useState<DashboardDto | null>(null);
+  const [lateItems, setLateItems] = useState<LateItemDto[]>([]);
   const [loading, setLoading] = useState(true);
   const [updatedAt, setUpdatedAt] = useState<Date>(new Date());
 
   async function load(showToast = false) {
     try {
-      const d = await getDashboard();
+      const [d, late] = await Promise.all([getDashboard(), getNotifications().catch(() => [])]);
       setData(d);
+      setLateItems(late);
       setUpdatedAt(new Date());
       if (showToast) toast("Dashboard diperbarui (real-time)", { icon: "🔄" });
     } catch {
@@ -69,6 +71,25 @@ export function DashboardPage() {
 
   return (
     <div className="space-y-5">
+      {/* FR-03 — Notifikasi keterlambatan produksi */}
+      {lateItems.length > 0 && (
+        <div className="bg-orange-50 border border-orange-200 rounded-2xl p-4">
+          <div className="flex items-center gap-2 text-orange-700 font-bold text-sm mb-2">
+            <AlertTriangle size={16} /> {lateItems.length} pekerjaan terlambat — perlu perhatian
+          </div>
+          <div className="space-y-1">
+            {lateItems.slice(0, 5).map((it) => (
+              <div key={it.id} className="text-xs text-orange-700 flex items-center gap-2">
+                <span className="font-semibold">{it.name}</span>
+                <span className="text-orange-400">·</span>
+                <span>{it.warehouse}</span>
+                <span className="ml-auto font-mono">terlambat ~{it.hoursLate} jam</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* KPI Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {kpis.map((k) => (
