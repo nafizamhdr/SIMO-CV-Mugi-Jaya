@@ -38,4 +38,11 @@ router.get(
   produksi.getDashboard,
 );
 
+// FR-03 — notifikasi keterlambatan produksi
+router.get(
+  "/notifications",
+  requireRole(["OWNER", "KEPALA_PRODUKSI"]),
+  produksi.getNotifications,
+);
+
 export default router;
