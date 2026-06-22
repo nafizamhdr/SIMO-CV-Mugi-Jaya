@@ -1,6 +1,7 @@
 import { ShipmentStatus } from "@prisma/client";
 import { prisma } from "../lib/prisma";
 import { HttpError } from "../utils/apiResponse";
+import { isOutsideRoute } from "../utils/businessRules";
 
 /**
  * Modul Logistik — logika bisnis (PIC: Redomas).
@@ -91,14 +92,7 @@ export async function createShipment(input: {
   });
 }
 
-// --- FR-09 Tracking + FR-10 Geofencing ---
-
-// Koridor rute yang diizinkan (bounding box kasar Bekasi -> IKN).
-const ROUTE_BOUNDS = { minLat: -7.5, maxLat: 1.5, minLng: 106.0, maxLng: 119.5 };
-
-function isOutsideRoute(lat: number, lng: number): boolean {
-  return lat < ROUTE_BOUNDS.minLat || lat > ROUTE_BOUNDS.maxLat || lng < ROUTE_BOUNDS.minLng || lng > ROUTE_BOUNDS.maxLng;
-}
+// --- FR-09 Tracking + FR-10 Geofencing (isOutsideRoute di utils/businessRules) ---
 
 export async function recordTracking(input: { shipmentId: string; lat: number; lng: number; speed?: number }) {
   const shipment = await prisma.shipment.findUnique({ where: { id: input.shipmentId } });

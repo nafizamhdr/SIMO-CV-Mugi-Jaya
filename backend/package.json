@@ -13,6 +13,8 @@
     "prisma:migrate": "prisma migrate dev",
     "prisma:studio": "prisma studio",
     "db:seed": "prisma db seed",
+    "test": "vitest run",
+    "test:watch": "vitest",
     "test:integration": "node scripts/integration-test.mjs"
   },
   "prisma": {
@@ -40,6 +42,7 @@
     "prisma": "^5.22.0",
     "ts-node": "^10.9.2",
     "ts-node-dev": "^2.0.0",
-    "typescript": "^5.7.3"
+    "typescript": "^5.7.3",
+    "vitest": "^2.1.8"
   }
 }

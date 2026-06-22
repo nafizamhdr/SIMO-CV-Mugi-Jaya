@@ -1,21 +1,14 @@
 import { Prisma, QCStatus } from "@prisma/client";
 import { prisma } from "../lib/prisma";
 import { HttpError } from "../utils/apiResponse";
+import { evaluateDimensions } from "../utils/businessRules";
 import type { DimensionsInput } from "../validators/qc.validator";
 
 /**
  * Modul QC — logika bisnis (PIC: Regian).
+ * Evaluasi toleransi dimensi memakai pure function di utils/businessRules.
  */
-
-/** Evaluasi dimensi terhadap toleransi → lolos bila semua nilai dalam rentang. */
-export function evaluateDimensions(dims: DimensionsInput): boolean {
-  const within = (v: number, [min, max]: [number, number]) => v >= min && v <= max;
-  return (
-    within(dims.actual.p, dims.tolerance.p) &&
-    within(dims.actual.l, dims.tolerance.l) &&
-    within(dims.actual.t, dims.tolerance.t)
-  );
-}
+export { evaluateDimensions };
 
 /** Daftar project (untuk pemilihan batch inspeksi). */
 export async function listProjects() {

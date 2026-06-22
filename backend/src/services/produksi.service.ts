@@ -1,6 +1,7 @@
 import { WorkItemStatus } from "@prisma/client";
 import { prisma } from "../lib/prisma";
 import { HttpError } from "../utils/apiResponse";
+import { tallyWorkItems } from "../utils/businessRules";
 import type { Role } from "../types";
 
 /**
@@ -108,27 +109,18 @@ export async function getDashboard() {
     prisma.workItem.findMany({ select: { id: true, status: true, projectId: true, warehouseId: true } }),
   ]);
 
-  const tally = (items: { status: WorkItemStatus }[]) => {
-    const total = items.length;
-    const done = items.filter((i) => i.status === "DONE").length;
-    const inProgress = items.filter((i) => i.status === "IN_PROGRESS").length;
-    const todo = items.filter((i) => i.status === "TODO").length;
-    const progress = total === 0 ? 0 : Math.round((done / total) * 100);
-    return { total, done, inProgress, todo, progress };
-  };
-
   const projectStats = projects.map((p) => ({
     ...p,
-    ...tally(workItems.filter((w) => w.projectId === p.id)),
+    ...tallyWorkItems(workItems.filter((w) => w.projectId === p.id)),
   }));
 
   const warehouseStats = warehouses.map((wh) => ({
     ...wh,
-    ...tally(workItems.filter((w) => w.warehouseId === wh.id)),
+    ...tallyWorkItems(workItems.filter((w) => w.warehouseId === wh.id)),
   }));
 
   return {
-    summary: tally(workItems),
+    summary: tallyWorkItems(workItems),
     projects: projectStats,
     warehouses: warehouseStats,
   };
