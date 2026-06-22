@@ -12,7 +12,8 @@
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
     "prisma:studio": "prisma studio",
-    "db:seed": "prisma db seed"
+    "db:seed": "prisma db seed",
+    "test:integration": "node scripts/integration-test.mjs"
   },
   "prisma": {
     "seed": "ts-node prisma/seed.ts"
