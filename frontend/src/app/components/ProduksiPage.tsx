@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Camera, CheckCircle2, Loader2, RefreshCw } from "lucide-react";
+import { Camera, CheckCircle2, Loader2, RefreshCw, CloudOff } from "lucide-react";
 import { toast } from "sonner";
 import type { WorkItemStatus } from "../../types";
 import {
@@ -9,6 +9,7 @@ import {
   type WarehouseDto,
   type WorkItemDto,
 } from "../../services/produksi.service";
+import { enqueueStatusUpdate, flushQueue, queueSize, registerAutoSync } from "../../services/syncQueue";
 
 const API_ORIGIN = import.meta.env.VITE_SOCKET_URL ?? "http://localhost:3000";
 
@@ -36,6 +37,7 @@ export function ProduksiPage() {
   const [newStatus, setNewStatus] = useState<WorkItemStatus | null>(null);
   const [photo, setPhoto] = useState<File | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [pendingSync, setPendingSync] = useState(queueSize());
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Muat warehouse milik mandor saat pertama render.
@@ -51,6 +53,18 @@ export function ProduksiPage() {
         setLoading(false);
       }
     })();
+  }, []);
+
+  // NFR-05: sinkronkan antrian offline saat halaman dibuka & saat kembali online.
+  useEffect(() => {
+    void flushQueue().then((n) => {
+      if (n > 0) toast.success(`${n} laporan offline tersinkronkan`);
+      setPendingSync(queueSize());
+    });
+    return registerAutoSync((count) => {
+      toast.success(`${count} laporan offline tersinkronkan`);
+      setPendingSync(queueSize());
+    });
   }, []);
 
   // Muat work item saat warehouse berubah.
@@ -88,7 +102,15 @@ export function ProduksiPage() {
       cancelUpdate();
       await loadItems(selectedWh);
     } catch {
-      toast.error("Gagal memperbarui status");
+      // NFR-05: offline / gagal kirim -> simpan ke antrian sinkronisasi.
+      if (!navigator.onLine) {
+        enqueueStatusUpdate(activeItem.id, newStatus);
+        setPendingSync(queueSize());
+        toast.warning("Offline — laporan disimpan & akan disinkronkan otomatis saat online");
+        cancelUpdate();
+      } else {
+        toast.error("Gagal memperbarui status");
+      }
     } finally {
       setSubmitting(false);
     }
@@ -104,6 +126,12 @@ export function ProduksiPage() {
 
   return (
     <div className="max-w-xl mx-auto">
+      {pendingSync > 0 && (
+        <div className="mb-3 flex items-center gap-2 text-xs font-semibold text-orange-700 bg-orange-50 border border-orange-200 rounded-xl px-3 py-2">
+          <CloudOff size={14} /> {pendingSync} laporan menunggu sinkronisasi (offline)
+        </div>
+      )}
+
       {/* Pilih warehouse */}
       <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm">
         <label className="block text-sm font-semibold text-gray-700 mb-2">Pilih Warehouse</label>
