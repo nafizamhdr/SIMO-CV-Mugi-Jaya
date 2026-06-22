@@ -11,7 +11,7 @@ import { LogistikPage } from "./components/LogistikPage";
 import { RepositoriPage } from "./components/RepositoriPage";
 import { AuditTrailPage } from "./components/AuditTrailPage";
 import { SuratJalanModal } from "./components/SuratJalanModal";
-import { initAuditTrail, type PageKey, type AuditEntry } from "./components/data";
+import { type PageKey } from "./components/data";
 import type { ShipmentDto } from "../services/logistik.service";
 import { useAuth } from "../hooks/useAuth";
 import { ROLE_CONFIG, PAGE_PATH, PAGE_ALLOW, menusFor, defaultPageFor } from "./roleConfig";
@@ -21,8 +21,6 @@ export default function App() {
   const navigate = useNavigate();
 
   const [isOnline, setIsOnline] = useState(true);
-  // AuditTrail masih memakai data contoh — diganti ke backend pada Sprint 6.
-  const [auditTrail] = useState<AuditEntry[]>(initAuditTrail());
   const [suratJalan, setSuratJalan] = useState<ShipmentDto | null>(null);
 
   const homePath = user ? PAGE_PATH[defaultPageFor(user.role)] : "/login";
@@ -77,7 +75,7 @@ export default function App() {
         <Route path="/qc" element={guard("qc", <QCPage />)} />
         <Route path="/logistik" element={guard("logistik", <LogistikPage onViewSuratJalan={setSuratJalan} />)} />
         <Route path="/repositori" element={guard("repositori", <RepositoriPage canUpload={canUpload} />)} />
-        <Route path="/audit" element={guard("audit", <AuditTrailPage auditTrail={auditTrail} />)} />
+        <Route path="/audit" element={guard("audit", <AuditTrailPage />)} />
 
         <Route path="*" element={<Navigate to={isAuthenticated ? homePath : "/login"} replace />} />
       </Routes>
