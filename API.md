@@ -68,6 +68,17 @@ Password seluruh akun seed (development): `Simo@2026`.
 | POST | `/logistik/tracking` | ADMIN_OPERASIONAL | FR-09/10 | `{ shipmentId, lat, lng, speed? }` — keluar koridor rute → status ANOMALY + emit socket `geofence_anomaly` |
 | POST | `/logistik/checkin` | ADMIN_OPERASIONAL | FR-11 | `{ shipmentId, lat?, lng?, note? }` — fallback tanpa GPS |
 
+## Manajemen Akun (khusus OWNER)
+
+| Method | Path | Keterangan |
+|---|---|---|
+| GET | `/users` | Daftar seluruh akun (tanpa password) |
+| POST | `/users` | `{ name, email, password (min 8), role }` — buat akun baru (bcrypt 12) |
+| PATCH | `/users/:id` | `{ name?, role?, isActive? }` — edit / aktif-nonaktifkan. Proteksi: tidak bisa menonaktifkan diri sendiri atau OWNER aktif terakhir |
+| PATCH | `/users/:id/password` | `{ password }` — reset kata sandi |
+
+Akun `isActive=false` ditolak saat login & refresh (403). Semua perubahan tercatat di AuditLog (`CREATE_USER`, `UPDATE_USER`, `RESET_USER_PASSWORD`).
+
 ## Audit Trail
 
 | Method | Path | Role | Keterangan |
