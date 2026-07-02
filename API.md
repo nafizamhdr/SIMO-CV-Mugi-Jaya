@@ -1,6 +1,6 @@
 # SIMO — Dokumentasi API
 
-Base URL (dev): `http://localhost:3000/api` · Produksi: `https://<backend>.onrender.com/api`
+Base URL (dev): `http://localhost:3000/api` · Produksi: `https://<user>-<space>.hf.space/api`
 
 Semua response memakai format baku:
 

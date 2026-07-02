@@ -58,16 +58,24 @@ Arsitektur hybrid — frontend & backend di-deploy terpisah, auto-deploy saat pu
 | Komponen | Platform | Konfigurasi |
 |---|---|---|
 | Frontend (React/Vite) | **Vercel** | `frontend/vercel.json` (root directory: `frontend/`) |
-| Backend (Express + Socket.io) | **Render** (free) | `render.yaml` (blueprint) + `backend/Dockerfile` |
+| Backend (Express + Socket.io) | **Hugging Face Spaces** (Docker, free tanpa kartu) | `backend/Dockerfile` + metadata di `backend/README.md` |
 | Database | **Neon** (free PostgreSQL) | connection string diisi ke `DATABASE_URL` |
 
+**Deploy backend ke HF Space** — isi Space dengan konten folder `backend/` (Dockerfile di root Space):
+
+```bash
+git subtree split --prefix backend -b hf-deploy
+git push https://<user>:<HF_TOKEN>@huggingface.co/spaces/<user>/<space>.git hf-deploy:main --force
+git branch -D hf-deploy
+```
+
 **Environment variables produksi:**
-- Render (backend): `DATABASE_URL` (Neon, akhiri `?sslmode=require`), `JWT_SECRET`, `JWT_REFRESH_SECRET`, `FRONTEND_URL` (domain Vercel; boleh banyak, dipisah koma), `NODE_ENV=production`
-- Vercel (frontend): `VITE_API_URL=https://<backend>.onrender.com/api`, `VITE_SOCKET_URL=https://<backend>.onrender.com`
+- HF Space (Settings → Variables and secrets): `DATABASE_URL` (Neon pooler, `?sslmode=require`), `JWT_SECRET`, `JWT_REFRESH_SECRET`, `FRONTEND_URL` (domain Vercel; boleh banyak, dipisah koma), `NODE_ENV=production`
+- Vercel (frontend): `VITE_API_URL=https://<user>-<space>.hf.space/api`, `VITE_SOCKET_URL=https://<user>-<space>.hf.space`
 
-Migrasi database (`prisma migrate deploy`) berjalan otomatis saat container backend start. Seed awal dijalankan sekali dari lokal: `DATABASE_URL=<neon> npx prisma db seed`.
+Migrasi database (`prisma migrate deploy`) berjalan otomatis saat container start. Seed awal dijalankan sekali dari lokal: `DATABASE_URL=<neon> npx prisma db seed`.
 
-> Catatan free tier Render: service "tidur" setelah ±15 menit idle — request pertama butuh ±30–60 detik untuk bangun. Buka URL backend sebelum demo agar hangat.
+> Catatan free tier HF Spaces: Space "tidur" setelah ±48 jam tanpa akses — buka URL backend sebelum demo agar hangat.
 
 Dokumentasi endpoint lengkap: [`API.md`](./API.md).
 
