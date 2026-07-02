@@ -1,6 +1,6 @@
 # SIMO — Dokumentasi API
 
-Base URL (dev): `http://localhost:3000/api` · Produksi: `https://<backend>.railway.app/api`
+Base URL (dev): `http://localhost:3000/api` · Produksi: `https://<backend>.onrender.com/api`
 
 Semua response memakai format baku:
 

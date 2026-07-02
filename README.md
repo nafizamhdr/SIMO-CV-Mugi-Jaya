@@ -51,21 +51,25 @@ npm run dev                   # http://localhost:5173
 
 Verifikasi backend: `GET http://localhost:3000/api/health` → `{ "status": "ok" }`.
 
-## Deployment (Production)
+## Deployment (Production — gratis)
 
 Arsitektur hybrid — frontend & backend di-deploy terpisah, auto-deploy saat push ke `main`:
 
 | Komponen | Platform | Konfigurasi |
 |---|---|---|
 | Frontend (React/Vite) | **Vercel** | `frontend/vercel.json` (root directory: `frontend/`) |
-| Backend (Express + Socket.io) | **Railway** | `backend/Dockerfile` + `backend/railway.json` (root directory: `backend/`) |
-| Database | **Railway PostgreSQL** | `DATABASE_URL` otomatis dari plugin |
+| Backend (Express + Socket.io) | **Render** (free) | `render.yaml` (blueprint) + `backend/Dockerfile` |
+| Database | **Neon** (free PostgreSQL) | connection string diisi ke `DATABASE_URL` |
 
 **Environment variables produksi:**
-- Railway (backend): `DATABASE_URL`, `JWT_SECRET`, `JWT_REFRESH_SECRET`, `FRONTEND_URL` (domain Vercel; boleh banyak, dipisah koma), `NODE_ENV=production`
-- Vercel (frontend): `VITE_API_URL=https://<backend>.railway.app/api`, `VITE_SOCKET_URL=https://<backend>.railway.app`
+- Render (backend): `DATABASE_URL` (Neon, akhiri `?sslmode=require`), `JWT_SECRET`, `JWT_REFRESH_SECRET`, `FRONTEND_URL` (domain Vercel; boleh banyak, dipisah koma), `NODE_ENV=production`
+- Vercel (frontend): `VITE_API_URL=https://<backend>.onrender.com/api`, `VITE_SOCKET_URL=https://<backend>.onrender.com`
 
-Migrasi database (`prisma migrate deploy`) berjalan otomatis saat container backend start. Dokumentasi endpoint lengkap: [`API.md`](./API.md).
+Migrasi database (`prisma migrate deploy`) berjalan otomatis saat container backend start. Seed awal dijalankan sekali dari lokal: `DATABASE_URL=<neon> npx prisma db seed`.
+
+> Catatan free tier Render: service "tidur" setelah ±15 menit idle — request pertama butuh ±30–60 detik untuk bangun. Buka URL backend sebelum demo agar hangat.
+
+Dokumentasi endpoint lengkap: [`API.md`](./API.md).
 
 ## Pengujian
 
