@@ -4,7 +4,9 @@
 # ============================================================
 
 # ---------- Stage 1: build ----------
-FROM node:20-alpine AS builder
+# node:20-slim (Debian) dipakai karena Prisma bermasalah dengan OpenSSL di Alpine.
+FROM node:20-slim AS builder
+RUN apt-get update -y && apt-get install -y openssl && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 
 # Install dependencies (termasuk devDependencies untuk compile TS)
@@ -19,7 +21,8 @@ COPY src ./src
 RUN npm run build
 
 # ---------- Stage 2: runtime ----------
-FROM node:20-alpine AS runner
+FROM node:20-slim AS runner
+RUN apt-get update -y && apt-get install -y openssl && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 ENV NODE_ENV=production
 
