@@ -51,6 +51,31 @@ npm run dev                   # http://localhost:5173
 
 Verifikasi backend: `GET http://localhost:3000/api/health` → `{ "status": "ok" }`.
 
+## Deployment (Production)
+
+Arsitektur hybrid — frontend & backend di-deploy terpisah, auto-deploy saat push ke `main`:
+
+| Komponen | Platform | Konfigurasi |
+|---|---|---|
+| Frontend (React/Vite) | **Vercel** | `frontend/vercel.json` (root directory: `frontend/`) |
+| Backend (Express + Socket.io) | **Railway** | `backend/Dockerfile` + `backend/railway.json` (root directory: `backend/`) |
+| Database | **Railway PostgreSQL** | `DATABASE_URL` otomatis dari plugin |
+
+**Environment variables produksi:**
+- Railway (backend): `DATABASE_URL`, `JWT_SECRET`, `JWT_REFRESH_SECRET`, `FRONTEND_URL` (domain Vercel; boleh banyak, dipisah koma), `NODE_ENV=production`
+- Vercel (frontend): `VITE_API_URL=https://<backend>.railway.app/api`, `VITE_SOCKET_URL=https://<backend>.railway.app`
+
+Migrasi database (`prisma migrate deploy`) berjalan otomatis saat container backend start. Dokumentasi endpoint lengkap: [`API.md`](./API.md).
+
+## Pengujian
+
+```bash
+cd backend
+npm test                  # unit test (Vitest)
+npm run test:integration  # alur Produksi -> QC -> Logistik
+npm run test:uat          # UAT RBAC 6 role
+```
+
 ## Akun Seed (Development)
 
 Semua user seed memakai password **`Simo@2026`**.
@@ -86,11 +111,15 @@ Commit mengikuti [Conventional Commits](https://www.conventionalcommits.org/): `
 
 ## Status Sprint
 
-**Sprint 1 — Fondasi & Setup Proyek** ✅
-- Struktur monorepo `frontend/` + `backend/`
-- Backend Express + Prisma + JWT auth + RBAC + `GET /api/health`
-- Schema database 12 entitas (3 modul) + migration + seed data dummy
-- Shared frontend: AuthContext, services, route guard berbasis role
-- Docker Compose (PostgreSQL + Redis) & GitHub Actions CI
+| Sprint | Cakupan | Status |
+|---|---|---|
+| 1 | Fondasi: monorepo, schema 12 entitas, seed, CI | ✅ |
+| 2 | Autentikasi, RBAC, halaman login, shell per role, 403 | ✅ |
+| 3 | Modul Produksi: status pekerjaan + foto (FR-01), dashboard real-time (FR-02) | ✅ |
+| 4 | Modul QC: checklist toleransi (FR-04), certificate (FR-05), NCI (FR-06), repositori (FR-12) | ✅ |
+| 5 | Modul Logistik: vendor AVL (FR-07), manifest wajib QC cert (FR-08), tracking & geofence (FR-09/10), check-in (FR-11) | ✅ |
+| 6 | Integrasi: audit trail lintas modul, notifikasi keterlambatan (FR-03) & anomali real-time, integration test | ✅ |
+| 7 | Testing: 20 unit test, UAT RBAC, offline-sync queue (NFR-05) | ✅ |
+| 8 | Deployment: Dockerfile, Vercel + Railway, dokumentasi API | ✅ |
 
 S1 Informatika — Fakultas Ilmu Komputer · Universitas AMIKOM Yogyakarta — 2026
