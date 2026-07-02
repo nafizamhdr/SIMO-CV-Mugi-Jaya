@@ -12,9 +12,14 @@ import { logger } from "./lib/logger";
 const app = express();
 const server = http.createServer(app);
 
-const frontendUrl = process.env.FRONTEND_URL ?? "http://localhost:5173";
+// FRONTEND_URL mendukung banyak origin dipisah koma
+// (mis. domain produksi Vercel + preview + localhost dev).
+const allowedOrigins = (process.env.FRONTEND_URL ?? "http://localhost:5173")
+  .split(",")
+  .map((o) => o.trim())
+  .filter(Boolean);
 
-app.use(cors({ origin: frontendUrl, credentials: true }));
+app.use(cors({ origin: allowedOrigins, credentials: true }));
 app.use(express.json({ limit: "5mb" }));
 app.use(express.urlencoded({ extended: true }));
 
@@ -26,7 +31,7 @@ app.use("/api", routes);
 
 // Socket.io — real-time dashboard updates (Modul Produksi & Logistik)
 const io = new SocketServer(server, {
-  cors: { origin: frontendUrl, credentials: true },
+  cors: { origin: allowedOrigins, credentials: true },
 });
 
 io.on("connection", (socket) => {
