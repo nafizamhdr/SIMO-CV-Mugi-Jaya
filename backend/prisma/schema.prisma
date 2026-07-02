@@ -42,6 +42,7 @@ model User {
   email     String   @unique
   password  String // bcrypt hash
   role      Role
+  isActive  Boolean  @default(true) // akun nonaktif tidak dapat login
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 

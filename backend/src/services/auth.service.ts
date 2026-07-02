@@ -58,6 +58,10 @@ export async function login(email: string, password: string): Promise<AuthResult
     throw new HttpError(401, "Email atau kata sandi salah");
   }
 
+  if (!user.isActive) {
+    throw new HttpError(403, "Akun Anda telah dinonaktifkan. Hubungi pemilik.");
+  }
+
   const payload: AuthPayload = {
     sub: user.id,
     email: user.email,
@@ -94,6 +98,9 @@ export async function refresh(refreshToken: string): Promise<TokenPair> {
   const user = await prisma.user.findUnique({ where: { id: userId } });
   if (!user) {
     throw new HttpError(401, "Pengguna tidak ditemukan");
+  }
+  if (!user.isActive) {
+    throw new HttpError(403, "Akun Anda telah dinonaktifkan. Hubungi pemilik.");
   }
 
   const payload: AuthPayload = {

@@ -28,6 +28,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setUser(JSON.parse(stored) as User);
       } catch {
         localStorage.removeItem(USER_KEY);
+        
       }
     }
     setIsLoading(false);

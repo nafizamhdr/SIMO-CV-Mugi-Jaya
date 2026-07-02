@@ -10,6 +10,7 @@ import { QCPage } from "./components/QCPage";
 import { LogistikPage } from "./components/LogistikPage";
 import { RepositoriPage } from "./components/RepositoriPage";
 import { AuditTrailPage } from "./components/AuditTrailPage";
+import { UsersPage } from "./components/UsersPage";
 import { SuratJalanModal } from "./components/SuratJalanModal";
 import { type PageKey } from "./components/data";
 import type { ShipmentDto } from "../services/logistik.service";
@@ -80,6 +81,7 @@ export default function App() {
         <Route path="/logistik" element={guard("logistik", <LogistikPage onViewSuratJalan={setSuratJalan} />)} />
         <Route path="/repositori" element={guard("repositori", <RepositoriPage canUpload={canUpload} />)} />
         <Route path="/audit" element={guard("audit", <AuditTrailPage />)} />
+        <Route path="/akun" element={guard("akun", <UsersPage />)} />
 
         <Route path="*" element={<Navigate to={isAuthenticated ? homePath : "/login"} replace />} />
       </Routes>

@@ -11,7 +11,8 @@ export type PageKey =
   | "qc"
   | "logistik"
   | "repositori"
-  | "audit";
+  | "audit"
+  | "akun";
 
 export interface User {
   roleKey: RoleKey;
@@ -96,6 +97,11 @@ export const MENU_DEF: Record<
     label: "Audit Trail",
     title: "Audit Trail",
     sub: "Log aktivitas sistem",
+  },
+  akun: {
+    label: "Manajemen Akun",
+    title: "Manajemen Akun Pengguna",
+    sub: "Kelola akun & hak akses karyawan",
   },
 };
 

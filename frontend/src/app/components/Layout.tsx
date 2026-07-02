@@ -6,6 +6,7 @@ import {
   Truck,
   FileText,
   Shield,
+  Users,
   LogOut,
 } from "lucide-react";
 import type { PageKey } from "./data";
@@ -18,6 +19,7 @@ const PAGE_ICONS: Record<PageKey, ReactNode> = {
   logistik: <Truck size={16} />,
   repositori: <FileText size={16} />,
   audit: <Shield size={16} />,
+  akun: <Users size={16} />,
 };
 
 interface LayoutProps {

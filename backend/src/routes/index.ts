@@ -4,6 +4,7 @@ import produksiRoutes from "./produksi.routes";
 import qcRoutes from "./qc.routes";
 import logistikRoutes from "./logistik.routes";
 import auditRoutes from "./audit.routes";
+import usersRoutes from "./users.routes";
 
 const router = Router();
 
@@ -18,5 +19,6 @@ router.use("/produksi", produksiRoutes); // Nafiza
 router.use("/qc", qcRoutes); // Regian
 router.use("/logistik", logistikRoutes); // Redomas
 router.use("/audit", auditRoutes); // Regian — audit trail lintas modul
+router.use("/users", usersRoutes); // Manajemen akun (OWNER)
 
 export default router;
