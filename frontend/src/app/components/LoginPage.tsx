@@ -1,59 +1,52 @@
 import { useState, type FormEvent } from "react";
 import { Eye, EyeOff, Loader2 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+import type { Role } from "../../types";
 import { useAuth } from "../../hooks/useAuth";
+import { extractApiError } from "../../services/api";
 import { PAGE_PATH, defaultPageFor } from "../roleConfig";
 
-/** Akun seed (development) — semua memakai password Simo@2026. */
-const QUICK_ACCOUNTS = [
-  { short: "OW", name: "Pemilik (Owner)", email: "owner@mugijaya.co.id" },
-  { short: "PY", name: "Kepala Produksi", email: "yudi@mugijaya.co.id" },
-  { short: "MD", name: "Mandor", email: "asep@mugijaya.co.id" },
-  { short: "QC", name: "Inspector QC", email: "qc@mugijaya.co.id" },
-  { short: "PE", name: "Supervisor Lapangan", email: "edi@mugijaya.co.id" },
-  { short: "AO", name: "Admin Operasional", email: "admin@mugijaya.co.id" },
+/** Pilihan role pada form login — divalidasi backend harus cocok dengan akun. */
+const ROLE_OPTIONS: { value: Role; label: string }[] = [
+  { value: "OWNER", label: "Pemilik (Owner)" },
+  { value: "KEPALA_PRODUKSI", label: "Kepala Produksi" },
+  { value: "MANDOR", label: "Mandor" },
+  { value: "INSPECTOR_QC", label: "Inspector QC" },
+  { value: "SUPERVISOR_LAPANGAN", label: "Supervisor Lapangan" },
+  { value: "ADMIN_OPERASIONAL", label: "Admin Operasional" },
 ];
-
-const SEED_PASSWORD = "Simo@2026";
 
 export function LoginPage() {
   const navigate = useNavigate();
   const { login } = useAuth();
 
+  const [role, setRole] = useState<Role | "">("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
-  async function submit(loginEmail: string, loginPassword: string) {
-    setError(null);
-    setLoading(true);
-    try {
-      const user = await login(loginEmail, loginPassword);
-      navigate(PAGE_PATH[defaultPageFor(user.role)], { replace: true });
-    } catch (err) {
-      const message =
-        err instanceof Error && err.message ? err.message : "Gagal masuk. Periksa email & kata sandi.";
-      setError(message);
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  function handleSubmit(e: FormEvent) {
+  async function handleSubmit(e: FormEvent) {
     e.preventDefault();
+    if (!role) {
+      setError("Silakan pilih role Anda.");
+      return;
+    }
     if (!email || !password) {
       setError("Email dan kata sandi wajib diisi.");
       return;
     }
-    void submit(email, password);
-  }
-
-  function handleQuickLogin(accEmail: string) {
-    setEmail(accEmail);
-    setPassword(SEED_PASSWORD);
-    void submit(accEmail, SEED_PASSWORD);
+    setError(null);
+    setLoading(true);
+    try {
+      const user = await login(email, password, role);
+      navigate(PAGE_PATH[defaultPageFor(user.role)], { replace: true });
+    } catch (err) {
+      setError(extractApiError(err, "Gagal masuk. Periksa email & kata sandi."));
+    } finally {
+      setLoading(false);
+    }
   }
 
   return (
@@ -123,6 +116,21 @@ export function LoginPage() {
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-2">Masuk Sebagai</label>
+              <select
+                value={role}
+                onChange={(e) => setRole(e.target.value as Role | "")}
+                className="w-full h-12 border border-gray-300 rounded-xl px-4 outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-100 text-sm bg-white"
+              >
+                <option value="">— Pilih Role —</option>
+                {ROLE_OPTIONS.map((r) => (
+                  <option key={r.value} value={r.value}>
+                    {r.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
               <label className="block text-sm font-semibold text-gray-700 mb-2">Email</label>
               <input
                 type="email"
@@ -169,26 +177,6 @@ export function LoginPage() {
               {loading ? "Memproses..." : "Masuk ke Dashboard"}
             </button>
           </form>
-
-          <div className="mt-8">
-            <div className="text-xs font-bold text-gray-400 uppercase tracking-wide mb-3">
-              Quick Login (Demo)
-            </div>
-            <div className="grid grid-cols-2 gap-2">
-              {QUICK_ACCOUNTS.map((acc) => (
-                <button
-                  key={acc.email}
-                  type="button"
-                  disabled={loading}
-                  onClick={() => handleQuickLogin(acc.email)}
-                  className="text-left px-3 py-2 rounded-lg border border-gray-200 hover:border-blue-400 hover:bg-blue-50 transition disabled:opacity-50"
-                >
-                  <div className="text-xs font-bold text-gray-800">{acc.short}</div>
-                  <div className="text-[11px] text-gray-500">{acc.name}</div>
-                </button>
-              ))}
-            </div>
-          </div>
         </div>
       </div>
     </div>

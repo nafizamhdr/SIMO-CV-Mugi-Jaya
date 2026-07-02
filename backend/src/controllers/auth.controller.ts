@@ -5,8 +5,8 @@ import { sendSuccess } from "../utils/apiResponse";
 
 export async function loginHandler(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
-    const { email, password } = loginSchema.parse(req.body);
-    const result = await authService.login(email, password);
+    const { email, password, role } = loginSchema.parse(req.body);
+    const result = await authService.login(email, password, role);
     sendSuccess(res, result, "Berhasil masuk");
   } catch (error) {
     next(error);

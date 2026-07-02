@@ -1,11 +1,12 @@
 import { api, unwrap, ACCESS_TOKEN_KEY, REFRESH_TOKEN_KEY } from "./api";
-import type { ApiSuccess, AuthResult } from "../types";
+import type { ApiSuccess, AuthResult, Role } from "../types";
 
 /**
  * Authentication API (FR-13). Persists tokens in localStorage.
+ * `role` (pilihan di form) divalidasi backend harus cocok dengan role akun.
  */
-export async function login(email: string, password: string): Promise<AuthResult> {
-  const { data } = await api.post<ApiSuccess<AuthResult>>("/auth/login", { email, password });
+export async function login(email: string, password: string, role?: Role): Promise<AuthResult> {
+  const { data } = await api.post<ApiSuccess<AuthResult>>("/auth/login", { email, password, role });
   const result = unwrap(data);
   localStorage.setItem(ACCESS_TOKEN_KEY, result.accessToken);
   localStorage.setItem(REFRESH_TOKEN_KEY, result.refreshToken);

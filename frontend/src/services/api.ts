@@ -23,6 +23,19 @@ api.interceptors.request.use((config) => {
 });
 
 /**
+ * Ambil pesan error dari respons API (envelope { error }) bila ada;
+ * fallback ke message umum.
+ */
+export function extractApiError(err: unknown, fallback = "Terjadi kesalahan"): string {
+  if (typeof err === "object" && err !== null && "response" in err) {
+    const resp = (err as { response?: { data?: { error?: string } } }).response;
+    if (resp?.data?.error) return resp.data.error;
+  }
+  if (err instanceof Error && err.message) return err.message;
+  return fallback;
+}
+
+/**
  * Unwrap the standard { success, data } envelope, throwing on API errors.
  */
 export function unwrap<T>(payload: { success: boolean; data?: T; error?: string }): T {

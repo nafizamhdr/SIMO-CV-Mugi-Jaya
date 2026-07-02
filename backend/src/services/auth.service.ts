@@ -46,8 +46,9 @@ async function storeRefreshToken(userId: string, token: string): Promise<void> {
 
 /**
  * Validate credentials and issue a JWT token pair.
+ * Bila `expectedRole` diberikan (dari dropdown form login), role akun harus cocok.
  */
-export async function login(email: string, password: string): Promise<AuthResult> {
+export async function login(email: string, password: string, expectedRole?: Role): Promise<AuthResult> {
   const user = await prisma.user.findUnique({ where: { email } });
   if (!user) {
     throw new HttpError(401, "Email atau kata sandi salah");
@@ -60,6 +61,10 @@ export async function login(email: string, password: string): Promise<AuthResult
 
   if (!user.isActive) {
     throw new HttpError(403, "Akun Anda telah dinonaktifkan. Hubungi pemilik.");
+  }
+
+  if (expectedRole && user.role !== expectedRole) {
+    throw new HttpError(401, "Role yang dipilih tidak sesuai dengan akun Anda");
   }
 
   const payload: AuthPayload = {
