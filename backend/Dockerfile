@@ -39,8 +39,15 @@ COPY prisma ./prisma
 COPY --from=builder /app/dist ./dist
 
 # Folder upload foto (catatan: filesystem container bersifat ephemeral;
-# gunakan Railway Volume / S3 untuk penyimpanan permanen)
+# gunakan S3/objek storage untuk penyimpanan permanen)
 RUN mkdir -p uploads
+
+# Hugging Face Spaces menjalankan container sebagai user UID 1000 —
+# pastikan seluruh /app dapat ditulis & HOME mengarah ke lokasi writable.
+RUN chown -R 1000:1000 /app
+ENV HOME=/tmp \
+    NPM_CONFIG_CACHE=/tmp/.npm
+USER 1000
 
 EXPOSE 3000
 
