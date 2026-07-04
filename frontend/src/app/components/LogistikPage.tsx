@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { FileText, AlertTriangle, MapPin, Navigation, Package, Loader2 } from "lucide-react";
+import { FileText, AlertTriangle, MapPin, Navigation, Package, Loader2, Route, LocateFixed, Link2, Plus, Check, X, Building2 } from "lucide-react";
 import { toast } from "sonner";
 import type { ShipmentStatus } from "../../types";
 import {
@@ -9,10 +9,43 @@ import {
   createShipment,
   postTracking,
   postCheckin,
+  getTracking,
+  regenerateTrackingToken,
+  createVendor,
+  updateVendor,
   type VendorDto,
   type ShipmentDto,
   type CertOptionDto,
+  type TrackPointDto,
 } from "../../services/logistik.service";
+import { MapContainer, TileLayer, Marker, Popup, Polyline } from "react-leaflet";
+import L from "leaflet";
+import "leaflet/dist/leaflet.css";
+
+const truckIconNormal = L.divIcon({
+  html: `<div class="px-2 py-1 rounded text-white text-[10px] font-bold shadow bg-[#1E7E34] text-center" style="min-width: max-content;">🚛</div>`,
+  className: "custom-leaflet-icon",
+  iconSize: [40, 20],
+  iconAnchor: [20, 10],
+});
+const truckIconAnomaly = L.divIcon({
+  html: `<div class="px-2 py-1 rounded text-white text-[10px] font-bold shadow bg-[#C00000] text-center" style="min-width: max-content;">🚛</div>`,
+  className: "custom-leaflet-icon",
+  iconSize: [40, 20],
+  iconAnchor: [20, 10],
+});
+const whIcon = L.divIcon({
+  html: `<div class="w-8 h-8 rounded-full flex items-center justify-center text-white shadow-md bg-[#1F3864] text-sm">📦</div>`,
+  className: "custom-leaflet-icon",
+  iconSize: [32, 32],
+  iconAnchor: [16, 16],
+});
+const projectIcon = L.divIcon({
+  html: `<div class="w-8 h-8 rounded-full flex items-center justify-center text-white shadow-md bg-[#1E7E34] text-sm">📍</div>`,
+  className: "custom-leaflet-icon",
+  iconSize: [32, 32],
+  iconAnchor: [16, 16],
+});
 
 interface Props {
   onViewSuratJalan: (shipment: ShipmentDto) => void;
@@ -32,6 +65,10 @@ export function LogistikPage({ onViewSuratJalan }: Props) {
   const [certs, setCerts] = useState<CertOptionDto[]>([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
+  const [trail, setTrail] = useState<TrackPointDto[]>([]);
+  const [trackedId, setTrackedId] = useState<string | null>(null);
+  const [showVendors, setShowVendors] = useState(false);
+  const [vendorForm, setVendorForm] = useState({ name: "", contact: "", licenseNo: "", rating: "4.5" });
 
   const [form, setForm] = useState({
     qcCertificateId: "",
@@ -110,6 +147,97 @@ export function LogistikPage({ onViewSuratJalan }: Props) {
     }
   }
 
+  // Tampilkan jejak (polyline) posisi asli dari TrackingLog.
+  async function handleTrack(shipmentId: string) {
+    try {
+      const points = await getTracking(shipmentId);
+      setTrail(points);
+      setTrackedId(shipmentId);
+      if (points.length === 0) toast.info("Belum ada data posisi untuk pengiriman ini");
+      else toast.success(`Menampilkan ${points.length} titik posisi di peta`);
+    } catch {
+      toast.error("Gagal memuat jejak posisi");
+    }
+  }
+
+  async function handleAddVendor() {
+    if (!vendorForm.name || !vendorForm.contact || !vendorForm.licenseNo) {
+      toast.error("Lengkapi nama, kontak, dan no. lisensi vendor");
+      return;
+    }
+    setBusy(true);
+    try {
+      await createVendor({
+        name: vendorForm.name,
+        contact: vendorForm.contact,
+        licenseNo: vendorForm.licenseNo,
+        rating: parseFloat(vendorForm.rating) || 0,
+        isApproved: true,
+      });
+      toast.success("Vendor ditambahkan & disetujui (AVL)");
+      setVendorForm({ name: "", contact: "", licenseNo: "", rating: "4.5" });
+      await load();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Gagal menambah vendor");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleToggleVendor(v: VendorDto) {
+    try {
+      await updateVendor(v.id, { isApproved: !v.isApproved });
+      toast.success(`Vendor ${v.name} ${!v.isApproved ? "disetujui" : "dicabut dari AVL"}`);
+      await load();
+    } catch {
+      toast.error("Gagal memperbarui vendor");
+    }
+  }
+
+  // Salin tautan halaman driver (untuk dibagikan ke driver — akses tanpa login).
+  async function handleDriverLink(s: ShipmentDto) {
+    try {
+      let token = s.trackingToken;
+      if (!token) {
+        token = (await regenerateTrackingToken(s.id)).trackingToken;
+        await load();
+      }
+      const url = `${window.location.origin}/driver/${s.id}?token=${token}`;
+      await navigator.clipboard?.writeText(url);
+      toast.success("Tautan driver disalin ke clipboard");
+    } catch {
+      toast.error("Gagal membuat tautan driver");
+    }
+  }
+
+  // FR-09 — kirim posisi GPS asli dari browser (geolocation).
+  function handleSendGps(shipmentId: string) {
+    if (!("geolocation" in navigator)) {
+      toast.error("Browser tidak mendukung GPS");
+      return;
+    }
+    toast.info("Meminta izin & membaca lokasi GPS...");
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        try {
+          await postTracking({
+            shipmentId,
+            lat: pos.coords.latitude,
+            lng: pos.coords.longitude,
+            speed: pos.coords.speed ?? undefined,
+          });
+          toast.success("Posisi GPS terkirim & tercatat");
+          await load();
+          if (trackedId === shipmentId) await handleTrack(shipmentId);
+        } catch {
+          toast.error("Gagal mengirim posisi GPS");
+        }
+      },
+      () => toast.error("Izin lokasi ditolak / GPS tidak tersedia"),
+      { enableHighAccuracy: true, timeout: 10000 },
+    );
+  }
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-20 text-gray-400">
@@ -122,6 +250,48 @@ export function LogistikPage({ onViewSuratJalan }: Props) {
 
   return (
     <div className="space-y-4">
+      {/* Kelola Vendor (AVL) */}
+      <div className="bg-white rounded-2xl p-4 border border-gray-100 shadow-sm">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Building2 size={18} className="text-gray-500" />
+            <h3 className="font-bold text-gray-900">Kelola Vendor (AVL)</h3>
+            <span className="text-xs text-gray-400">{vendors.length} vendor</span>
+          </div>
+          <button onClick={() => setShowVendors((v) => !v)} className="text-sm font-semibold text-blue-600 flex items-center gap-1">
+            {showVendors ? <X size={14} /> : <Plus size={14} />} {showVendors ? "Tutup" : "Kelola"}
+          </button>
+        </div>
+        {showVendors && (
+          <div className="mt-4 space-y-3">
+            {/* Form tambah vendor */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+              <input placeholder="Nama vendor" value={vendorForm.name} onChange={(e) => setVendorForm({ ...vendorForm, name: e.target.value })} className="h-10 border border-gray-300 rounded-lg px-3 text-sm" />
+              <input placeholder="Kontak" value={vendorForm.contact} onChange={(e) => setVendorForm({ ...vendorForm, contact: e.target.value })} className="h-10 border border-gray-300 rounded-lg px-3 text-sm" />
+              <input placeholder="No. Lisensi" value={vendorForm.licenseNo} onChange={(e) => setVendorForm({ ...vendorForm, licenseNo: e.target.value })} className="h-10 border border-gray-300 rounded-lg px-3 text-sm" />
+              <input type="number" step="0.1" min="0" max="5" placeholder="Rating" value={vendorForm.rating} onChange={(e) => setVendorForm({ ...vendorForm, rating: e.target.value })} className="h-10 border border-gray-300 rounded-lg px-3 text-sm" />
+            </div>
+            <button onClick={handleAddVendor} disabled={busy} className="h-10 px-4 rounded-lg text-white font-bold text-sm disabled:opacity-50" style={{ background: "#1E7E34" }}>
+              + Tambah Vendor
+            </button>
+            {/* Daftar vendor */}
+            <div className="divide-y divide-gray-100 border-t border-gray-100">
+              {vendors.map((v) => (
+                <div key={v.id} className="flex items-center gap-3 py-2.5 text-sm">
+                  <span className="flex-1 font-semibold text-gray-800">{v.name} <span className="text-gray-400 font-normal">★{v.rating}</span></span>
+                  <span className={`text-[11px] font-bold px-2 py-1 rounded-full ${v.isApproved ? "bg-green-100 text-green-700" : "bg-gray-200 text-gray-500"}`}>
+                    {v.isApproved ? "AVL" : "BELUM"}
+                  </span>
+                  <button onClick={() => handleToggleVendor(v)} title={v.isApproved ? "Cabut dari AVL" : "Setujui"} className={`p-2 rounded-lg border ${v.isApproved ? "border-red-200 text-red-500 hover:bg-red-50" : "border-green-200 text-green-600 hover:bg-green-50"}`}>
+                    {v.isApproved ? <X size={14} /> : <Check size={14} />}
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+
       {/* Map */}
       <div className="bg-white rounded-2xl p-4 border border-gray-100 shadow-sm">
         <div className="flex items-center justify-between mb-3 px-2">
@@ -136,45 +306,46 @@ export function LogistikPage({ onViewSuratJalan }: Props) {
             ⚡ Simulasi Anomali Rute
           </button>
         </div>
-        <div className="rounded-xl overflow-hidden relative" style={{ height: 280, background: "linear-gradient(135deg,#e8f0fe,#dbeafe)" }}>
-          <svg className="absolute inset-0 w-full h-full opacity-20">
-            {Array.from({ length: 6 }, (_, i) => (
-              <line key={`h${i}`} x1="0" y1={`${(i + 1) * 16}%`} x2="100%" y2={`${(i + 1) * 16}%`} stroke="#2E5FA3" strokeWidth="0.5" />
-            ))}
-            {Array.from({ length: 8 }, (_, i) => (
-              <line key={`v${i}`} x1={`${(i + 1) * 12}%`} y1="0" x2={`${(i + 1) * 12}%`} y2="100%" stroke="#2E5FA3" strokeWidth="0.5" />
-            ))}
-          </svg>
-          <svg className="absolute inset-0 w-full h-full">
-            <line x1="15%" y1="70%" x2="85%" y2="30%" stroke="#2E5FA3" strokeWidth="2.5" strokeDasharray="8,4" opacity="0.7" />
-          </svg>
-          <div className="absolute" style={{ left: "12%", top: "62%" }}>
-            <div className="flex flex-col items-center">
-              <div className="w-8 h-8 rounded-full flex items-center justify-center text-white shadow-md" style={{ background: "#1F3864" }}>
-                <Package size={14} />
-              </div>
-              <div className="mt-1 text-[10px] font-bold px-2 py-0.5 rounded text-white" style={{ background: "#1F3864" }}>Gudang Bekasi</div>
-            </div>
-          </div>
-          {shipments.filter((s) => s.status !== "DELIVERED").map((s, i) => {
-            const color = s.status === "ANOMALY" ? "#C00000" : "#1E7E34";
-            return (
-              <div key={s.id} className="absolute" style={{ left: `${35 + i * 14}%`, top: `${48 - i * 5}%` }}>
-                <div className="flex flex-col items-center">
-                  <div className="px-2 py-1 rounded text-white text-[10px] font-bold shadow" style={{ background: color }}>🚛 {s.id.slice(-4)}</div>
-                </div>
-              </div>
-            );
-          })}
-          <div className="absolute" style={{ left: "82%", top: "22%" }}>
-            <div className="flex flex-col items-center">
-              <div className="w-8 h-8 rounded-full flex items-center justify-center text-white shadow-md" style={{ background: "#1E7E34" }}>
-                <MapPin size={14} />
-              </div>
-              <div className="mt-1 text-[10px] font-bold px-2 py-0.5 rounded text-white" style={{ background: "#1E7E34" }}>Proyek IKN</div>
-            </div>
-          </div>
-          <div className="absolute top-3 right-3"><Navigation size={20} className="text-blue-900 opacity-50" /></div>
+        <div className="rounded-xl overflow-hidden relative z-0" style={{ height: 350 }}>
+          <MapContainer center={[-6.241586, 107.03]} zoom={12} style={{ height: "100%", width: "100%", zIndex: 0 }}>
+            <TileLayer
+              attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a>'
+              url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+            />
+            {/* Gudang */}
+            <Marker position={[-6.241586, 106.992416]} icon={whIcon}>
+              <Popup>Gudang Bekasi</Popup>
+            </Marker>
+            
+            {/* Proyek */}
+            <Marker position={[-6.25, 107.07]} icon={projectIcon}>
+              <Popup>Proyek Tujuan</Popup>
+            </Marker>
+
+            {/* Armada — posisi ASLI dari TrackingLog terakhir (fallback bila belum ada) */}
+            {shipments.filter((s) => s.status !== "DELIVERED").map((s, i) => {
+              const icon = s.status === "ANOMALY" ? truckIconAnomaly : truckIconNormal;
+              const last = s.trackingLogs?.[0];
+              const lat = last ? last.lat : -6.241586 - i * 0.002;
+              const lng = last ? last.lng : 106.992416 + i * 0.02 + 0.01;
+              return (
+                <Marker key={s.id} position={[lat, lng]} icon={icon}>
+                  <Popup>
+                    <strong>ID: {s.id.slice(-8)}</strong>
+                    <br />
+                    Status: {STATUS_MAP[s.status].label}
+                    <br />
+                    {last ? `Posisi asli: ${lat.toFixed(4)}, ${lng.toFixed(4)}` : "Belum ada data GPS"}
+                  </Popup>
+                </Marker>
+              );
+            })}
+
+            {/* Jejak rute (polyline) posisi asli pengiriman yang dipilih */}
+            {trail.length > 1 && (
+              <Polyline positions={trail.map((p) => [p.lat, p.lng] as [number, number])} pathOptions={{ color: "#2E5FA3", weight: 3, dashArray: "6,6" }} />
+            )}
+          </MapContainer>
         </div>
       </div>
 
@@ -239,14 +410,27 @@ export function LogistikPage({ onViewSuratJalan }: Props) {
                         <AlertTriangle size={12} /> Truk keluar rute — notifikasi terkirim
                       </div>
                     )}
-                    <div className="flex items-center gap-2 mt-3">
+                    <div className="flex items-center gap-2 mt-3 flex-wrap">
                       <button onClick={() => onViewSuratJalan(s)} className="text-xs font-semibold text-blue-600 border border-blue-200 px-3 py-1.5 rounded-lg hover:bg-blue-50 flex items-center gap-1">
                         <FileText size={12} /> Surat Jalan
                       </button>
+                      <button onClick={() => handleTrack(s.id)} className={`text-xs font-semibold border px-3 py-1.5 rounded-lg flex items-center gap-1 ${trackedId === s.id ? "text-white bg-blue-700 border-blue-700" : "text-blue-700 border-blue-200 hover:bg-blue-50"}`}>
+                        <Route size={12} /> Lacak
+                      </button>
                       {s.status !== "DELIVERED" && (
-                        <button onClick={() => handleCheckin(s.id)} className="text-xs font-semibold text-orange-600 border border-orange-200 px-3 py-1.5 rounded-lg hover:bg-orange-50">
-                          Check-in
+                        <button onClick={() => handleDriverLink(s)} className="text-xs font-semibold text-purple-700 border border-purple-200 px-3 py-1.5 rounded-lg hover:bg-purple-50 flex items-center gap-1">
+                          <Link2 size={12} /> Link Driver
                         </button>
+                      )}
+                      {s.status !== "DELIVERED" && (
+                        <>
+                          <button onClick={() => handleSendGps(s.id)} className="text-xs font-semibold text-green-700 border border-green-200 px-3 py-1.5 rounded-lg hover:bg-green-50 flex items-center gap-1">
+                            <LocateFixed size={12} /> Kirim GPS
+                          </button>
+                          <button onClick={() => handleCheckin(s.id)} className="text-xs font-semibold text-orange-600 border border-orange-200 px-3 py-1.5 rounded-lg hover:bg-orange-50">
+                            Check-in
+                          </button>
+                        </>
                       )}
                     </div>
                   </div>

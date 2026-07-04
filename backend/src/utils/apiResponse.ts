@@ -9,6 +9,11 @@ export function sendSuccess<T>(res: Response, data: T, message?: string, status 
   return res.status(status).json(body);
 }
 
+/** Response 201 Created — untuk endpoint yang membuat resource baru. */
+export function sendCreated<T>(res: Response, data: T, message?: string): Response {
+  return sendSuccess(res, data, message, 201);
+}
+
 export function sendError(res: Response, error: string, code = 400): Response {
   const body: ApiError = { success: false, error, code };
   return res.status(code).json(body);

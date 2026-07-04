@@ -28,6 +28,7 @@ enum Role {
   INSPECTOR_QC
   SUPERVISOR_LAPANGAN
   ADMIN_OPERASIONAL
+  SUPER_ADMIN
 }
 
 enum WorkItemStatus {
@@ -36,21 +37,47 @@ enum WorkItemStatus {
   DONE
 }
 
+enum UserStatus {
+  ACTIVE
+  INVITED
+}
+
 model User {
-  id        String   @id @default(cuid())
-  name      String
-  email     String   @unique
-  password  String // bcrypt hash
-  role      Role
-  isActive  Boolean  @default(true) // akun nonaktif tidak dapat login
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id           String     @id @default(cuid())
+  name         String
+  email        String     @unique
+  password     String // bcrypt hash (kosong bila status INVITED)
+  role         Role
+  isActive     Boolean    @default(true) // akun nonaktif tidak dapat login
+  status       UserStatus @default(ACTIVE) // INVITED = belum set password
+  tokenVersion Int        @default(0) // dinaikkan saat reset password -> cabut sesi lama
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
 
   warehouses Warehouse[]
   workItems  WorkItem[]  @relation("AssignedTo")
   auditLogs  AuditLog[]
   qcRecords  QCRecord[]
   shipments  Shipment[]  @relation("CreatedBy")
+  authTokens AuthToken[]
+}
+
+enum AuthTokenPurpose {
+  INVITE
+  RESET
+}
+
+/// Token undangan & reset password — disimpan sebagai hash, sekali pakai.
+model AuthToken {
+  id        String           @id @default(cuid())
+  userId    String
+  tokenHash String           @unique
+  purpose   AuthTokenPurpose
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime         @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model Project {
@@ -203,6 +230,7 @@ model Shipment {
   vehicleNo       String
   insurancePolis  String
   status          ShipmentStatus @default(DRAFT)
+  trackingToken   String?        @unique // token akses halaman driver (tanpa login)
   departedAt      DateTime?
   arrivedAt       DateTime?
   createdAt       DateTime       @default(now())

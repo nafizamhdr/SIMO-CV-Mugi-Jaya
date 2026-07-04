@@ -1,4 +1,4 @@
-import { ReactNode } from "react";
+import { ReactNode, useState } from "react";
 import {
   LayoutDashboard,
   SlidersHorizontal,
@@ -7,10 +7,14 @@ import {
   FileText,
   Shield,
   Users,
+  BarChart3,
+  Navigation,
+  KeyRound,
   LogOut,
 } from "lucide-react";
 import type { PageKey } from "./data";
 import { MENU_DEF } from "./data";
+import { ChangePasswordModal } from "./ChangePasswordModal";
 
 const PAGE_ICONS: Record<PageKey, ReactNode> = {
   dashboard: <LayoutDashboard size={16} />,
@@ -20,6 +24,8 @@ const PAGE_ICONS: Record<PageKey, ReactNode> = {
   repositori: <FileText size={16} />,
   audit: <Shield size={16} />,
   akun: <Users size={16} />,
+  laporan: <BarChart3 size={16} />,
+  tracking: <Navigation size={16} />,
 };
 
 interface LayoutProps {
@@ -48,6 +54,7 @@ export function Layout({
   onToggleConnection,
 }: LayoutProps) {
   const pageInfo = MENU_DEF[activePage];
+  const [showChangePw, setShowChangePw] = useState(false);
 
   return (
     <div
@@ -98,8 +105,15 @@ export function Layout({
           })}
         </nav>
 
-        {/* Logout */}
-        <div className="p-3 border-t border-gray-100">
+        {/* Akun */}
+        <div className="p-3 border-t border-gray-100 space-y-1">
+          <button
+            onClick={() => setShowChangePw(true)}
+            className="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-gray-500 hover:bg-gray-50 font-semibold text-sm"
+          >
+            <KeyRound size={16} />
+            Ganti Kata Sandi
+          </button>
           <button
             onClick={onLogout}
             className="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-gray-500 hover:bg-gray-50 font-semibold text-sm"
@@ -162,6 +176,8 @@ export function Layout({
         {/* Page content */}
         <div className="flex-1 overflow-y-auto p-6">{children}</div>
       </main>
+
+      {showChangePw && <ChangePasswordModal onClose={() => setShowChangePw(false)} />}
     </div>
   );
 }

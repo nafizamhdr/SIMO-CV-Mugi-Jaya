@@ -17,6 +17,7 @@ const publicSelect = {
   email: true,
   role: true,
   isActive: true,
+  status: true,
   createdAt: true,
 } as const;
 
@@ -56,14 +57,16 @@ async function assertNotLastActiveOwner(targetId: string, changes: { role?: Role
   const target = await prisma.user.findUnique({ where: { id: targetId } });
   if (!target) throw new HttpError(404, "Pengguna tidak ditemukan");
 
-  const losesOwner =
-    target.role === "OWNER" &&
-    ((changes.role && changes.role !== "OWNER") || changes.isActive === false);
-
-  if (losesOwner) {
-    const activeOwners = await prisma.user.count({ where: { role: "OWNER", isActive: true } });
-    if (activeOwners <= 1) {
-      throw new HttpError(400, "Tidak dapat menonaktifkan/mengubah OWNER aktif terakhir");
+  // Lindungi role kritis (OWNER & SUPER_ADMIN) agar tidak ada yang tersisa nol.
+  for (const critical of ["OWNER", "SUPER_ADMIN"] as const) {
+    const losing =
+      target.role === critical &&
+      ((changes.role && changes.role !== critical) || changes.isActive === false);
+    if (losing) {
+      const activeCount = await prisma.user.count({ where: { role: critical, isActive: true } });
+      if (activeCount <= 1) {
+        throw new HttpError(400, `Tidak dapat menonaktifkan/mengubah ${critical} aktif terakhir`);
+      }
     }
   }
   return target;
@@ -102,7 +105,8 @@ export async function resetPassword(targetId: string, newPassword: string, actor
   const password = await bcrypt.hash(newPassword, SALT_ROUNDS);
 
   await prisma.$transaction([
-    prisma.user.update({ where: { id: targetId }, data: { password } }),
+    // Naikkan tokenVersion agar sesi lama user langsung tertolak.
+    prisma.user.update({ where: { id: targetId }, data: { password, tokenVersion: { increment: 1 } } }),
     prisma.auditLog.create({
       data: {
         userId: actorId,

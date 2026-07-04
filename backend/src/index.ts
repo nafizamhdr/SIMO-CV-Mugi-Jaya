@@ -23,8 +23,18 @@ app.use(cors({ origin: allowedOrigins, credentials: true }));
 app.use(express.json({ limit: "5mb" }));
 app.use(express.urlencoded({ extended: true }));
 
-// Static: foto dokumentasi produksi/QC (dev — nantinya AWS S3)
-app.use("/uploads", express.static(UPLOAD_DIR));
+// Static: foto dokumentasi produksi/QC (dev — nantinya AWS S3).
+// Dikeraskan: nosniff (cegah MIME sniffing) + attachment (file dibuka sbg
+// unduhan, bukan di-render inline) untuk mencegah stored XSS lewat berkas unggahan.
+app.use(
+  "/uploads",
+  (_req, res, next) => {
+    res.setHeader("X-Content-Type-Options", "nosniff");
+    res.setHeader("Content-Disposition", "attachment");
+    next();
+  },
+  express.static(UPLOAD_DIR),
+);
 
 // API routes
 app.use("/api", routes);

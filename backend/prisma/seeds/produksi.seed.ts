@@ -15,8 +15,8 @@ export async function seedProduksi(prisma: PrismaClient): Promise<void> {
     { id: "usr-kaprod", name: "Pak Yudi", email: "yudi@mugijaya.co.id", role: Role.KEPALA_PRODUKSI },
     { id: "usr-mandor", name: "Mandor Asep", email: "asep@mugijaya.co.id", role: Role.MANDOR },
     { id: "usr-inspector", name: "Inspector QC", email: "qc@mugijaya.co.id", role: Role.INSPECTOR_QC },
-    { id: "usr-supervisor", name: "Pak Edi", email: "edi@mugijaya.co.id", role: Role.SUPERVISOR_LAPANGAN },
     { id: "usr-admin", name: "Admin Operasional", email: "admin@mugijaya.co.id", role: Role.ADMIN_OPERASIONAL },
+    { id: "usr-superadmin", name: "Super Admin", email: "superadmin@mugijaya.co.id", role: Role.SUPER_ADMIN },
   ];
 
   for (const u of users) {

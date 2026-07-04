@@ -41,6 +41,18 @@ export async function createSpecification(input: {
   });
 }
 
+/** Hapus spesifikasi — hanya bila belum dipakai QC record. */
+export async function deleteSpecification(id: string) {
+  const spec = await prisma.specification.findUnique({ where: { id } });
+  if (!spec) throw new HttpError(404, "Spesifikasi tidak ditemukan");
+
+  const used = await prisma.qCRecord.count({ where: { specificationId: id } });
+  if (used > 0) {
+    throw new HttpError(409, `Spesifikasi tidak dapat dihapus karena sudah dipakai ${used} inspeksi QC`);
+  }
+  await prisma.specification.delete({ where: { id } });
+}
+
 // --- Inspection items & records (FR-04) ---
 
 /** Daftar work item suatu project beserta status QC terkininya. */

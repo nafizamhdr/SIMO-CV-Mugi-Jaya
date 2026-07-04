@@ -9,8 +9,8 @@ const roleEnum = z.enum([
   "KEPALA_PRODUKSI",
   "MANDOR",
   "INSPECTOR_QC",
-  "SUPERVISOR_LAPANGAN",
   "ADMIN_OPERASIONAL",
+  "SUPER_ADMIN",
 ]);
 
 export const createUserSchema = z.object({

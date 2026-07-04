@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from "react";
 import { Eye, EyeOff, Loader2 } from "lucide-react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
 import type { Role } from "../../types";
 import { useAuth } from "../../hooks/useAuth";
 import { extractApiError } from "../../services/api";
@@ -12,8 +12,8 @@ const ROLE_OPTIONS: { value: Role; label: string }[] = [
   { value: "KEPALA_PRODUKSI", label: "Kepala Produksi" },
   { value: "MANDOR", label: "Mandor" },
   { value: "INSPECTOR_QC", label: "Inspector QC" },
-  { value: "SUPERVISOR_LAPANGAN", label: "Supervisor Lapangan" },
   { value: "ADMIN_OPERASIONAL", label: "Admin Operasional" },
+  { value: "SUPER_ADMIN", label: "Super Admin" },
 ];
 
 export function LoginPage() {
@@ -177,6 +177,11 @@ export function LoginPage() {
               {loading ? "Memproses..." : "Masuk ke Dashboard"}
             </button>
           </form>
+          <div className="mt-4 text-center">
+            <Link to="/forgot-password" className="text-sm font-semibold text-blue-600 hover:text-blue-800">
+              Lupa kata sandi?
+            </Link>
+          </div>
         </div>
       </div>
     </div>

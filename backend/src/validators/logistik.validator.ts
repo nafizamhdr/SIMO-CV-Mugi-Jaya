@@ -34,9 +34,9 @@ export const createShipmentSchema = z.object({
 // FR-09 — Tracking
 export const trackingSchema = z.object({
   shipmentId: z.string().min(1, "shipmentId wajib diisi"),
-  lat: z.number(),
-  lng: z.number(),
-  speed: z.number().optional(),
+  lat: z.number().min(-90).max(90),
+  lng: z.number().min(-180).max(180),
+  speed: z.number().min(0).max(400).optional(),
 });
 
 // FR-11 — Check-in manual

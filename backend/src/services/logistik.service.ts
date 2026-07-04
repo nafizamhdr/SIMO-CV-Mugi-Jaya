@@ -1,3 +1,4 @@
+import crypto from "crypto";
 import { ShipmentStatus } from "@prisma/client";
 import { prisma } from "../lib/prisma";
 import { HttpError } from "../utils/apiResponse";
@@ -76,6 +77,7 @@ export async function createShipment(input: {
         vehicleNo: input.vehicleNo,
         insurancePolis: input.insurancePolis,
         status: ShipmentStatus.DISPATCHED,
+        trackingToken: crypto.randomUUID(),
         departedAt: new Date(),
       },
     });
@@ -93,6 +95,61 @@ export async function createShipment(input: {
 }
 
 // --- FR-09 Tracking + FR-10 Geofencing (isOutsideRoute di utils/businessRules) ---
+
+/** (Re)generate tracking token sebuah pengiriman (admin). */
+export async function regenerateTrackingToken(shipmentId: string) {
+  const shipment = await prisma.shipment.findUnique({ where: { id: shipmentId } });
+  if (!shipment) throw new HttpError(404, "Pengiriman tidak ditemukan");
+  const token = crypto.randomUUID();
+  await prisma.shipment.update({ where: { id: shipmentId }, data: { trackingToken: token } });
+  return { trackingToken: token };
+}
+
+/** Ambil info pengiriman untuk halaman driver — divalidasi via tracking token. */
+export async function getDriverShipment(shipmentId: string, token: string) {
+  const shipment = await prisma.shipment.findUnique({
+    where: { id: shipmentId },
+    include: { project: { select: { name: true } }, vendor: { select: { name: true } } },
+  });
+  if (!shipment) throw new HttpError(404, "Pengiriman tidak ditemukan");
+  if (!shipment.trackingToken || shipment.trackingToken !== token) {
+    throw new HttpError(403, "Token pelacakan tidak valid");
+  }
+  return {
+    id: shipment.id,
+    driverName: shipment.driverName,
+    vehicleNo: shipment.vehicleNo,
+    status: shipment.status,
+    project: shipment.project.name,
+    vendor: shipment.vendor.name,
+  };
+}
+
+/** Driver mengirim posisi GPS — divalidasi via tracking token (tanpa login). */
+export async function driverPostLocation(shipmentId: string, token: string, lat: number, lng: number, speed?: number) {
+  const shipment = await prisma.shipment.findUnique({ where: { id: shipmentId } });
+  if (!shipment) throw new HttpError(404, "Pengiriman tidak ditemukan");
+  if (!shipment.trackingToken || shipment.trackingToken !== token) {
+    throw new HttpError(403, "Token pelacakan tidak valid");
+  }
+  return recordTracking({ shipmentId, lat, lng, speed });
+}
+
+/** Riwayat posisi (TrackingLog) sebuah pengiriman — untuk peta live. */
+export async function getTrackingHistory(shipmentId: string) {
+  const logs = await prisma.trackingLog.findMany({
+    where: { shipmentId },
+    orderBy: { loggedAt: "asc" },
+    take: 200,
+  });
+  return logs.map((l) => ({
+    lat: l.lat,
+    lng: l.lng,
+    speed: l.speed,
+    isAnomaly: l.isAnomaly,
+    loggedAt: l.loggedAt,
+  }));
+}
 
 export async function recordTracking(input: { shipmentId: string; lat: number; lng: number; speed?: number }) {
   const shipment = await prisma.shipment.findUnique({ where: { id: input.shipmentId } });

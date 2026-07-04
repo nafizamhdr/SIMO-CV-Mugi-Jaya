@@ -79,6 +79,10 @@ export async function createNCItem(input: {
   return unwrap(data);
 }
 
+export async function deleteSpecification(id: string): Promise<void> {
+  await api.delete(`/qc/specifications/${id}`);
+}
+
 export async function getSpecifications(projectId?: string): Promise<SpecificationDto[]> {
   const { data } = await api.get<ApiSuccess<SpecificationDto[]>>("/qc/specifications", {
     params: projectId ? { projectId } : undefined,
@@ -90,13 +94,13 @@ export async function uploadSpecification(input: {
   projectId: string;
   title: string;
   version?: string;
-  file: File;
+  file?: File | null;
 }): Promise<SpecificationDto> {
   const form = new FormData();
   form.append("projectId", input.projectId);
   form.append("title", input.title);
   if (input.version) form.append("version", input.version);
-  form.append("file", input.file);
+  if (input.file) form.append("file", input.file);
   const { data } = await api.post<ApiSuccess<SpecificationDto>>("/qc/specifications", form);
   return unwrap(data);
 }

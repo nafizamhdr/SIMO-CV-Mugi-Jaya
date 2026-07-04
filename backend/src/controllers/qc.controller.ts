@@ -44,9 +44,19 @@ export async function getSpecifications(req: AuthRequest, res: Response, next: N
 export async function createSpecification(req: AuthRequest, res: Response, next: NextFunction) {
   try {
     const { projectId, title, version } = createSpecSchema.parse(req.body);
-    if (!req.file) throw new HttpError(422, "File spesifikasi wajib diunggah");
-    const spec = await qc.createSpecification({ projectId, title, version, fileUrl: publicUrl(req.file.filename) });
-    sendSuccess(res, spec, "Spesifikasi diunggah", 201);
+    // File opsional: bila tidak diunggah, fileUrl kosong (spesifikasi tetap dibuat).
+    const fileUrl = req.file ? publicUrl(req.file.filename) : "";
+    const spec = await qc.createSpecification({ projectId, title, version, fileUrl });
+    sendSuccess(res, spec, "Spesifikasi disimpan", 201);
+  } catch (e) {
+    next(e);
+  }
+}
+
+export async function deleteSpecification(req: AuthRequest, res: Response, next: NextFunction) {
+  try {
+    await qc.deleteSpecification(req.params.id);
+    sendSuccess(res, null, "Spesifikasi dihapus");
   } catch (e) {
     next(e);
   }

@@ -8,8 +8,8 @@ export type Role =
   | "KEPALA_PRODUKSI"
   | "MANDOR"
   | "INSPECTOR_QC"
-  | "SUPERVISOR_LAPANGAN"
-  | "ADMIN_OPERASIONAL";
+  | "ADMIN_OPERASIONAL"
+  | "SUPER_ADMIN";
 
 /**
  * Decoded JWT payload attached to authenticated requests.
@@ -19,6 +19,7 @@ export interface AuthPayload {
   email: string;
   name: string;
   role: Role;
+  tokenVersion?: number; // dicocokkan dengan DB; mismatch -> sesi ditolak
 }
 
 /**

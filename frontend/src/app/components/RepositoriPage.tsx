@@ -1,13 +1,15 @@
 import { useEffect, useRef, useState } from "react";
-import { Search, Download, Plus, FileText, Loader2, X } from "lucide-react";
+import { Search, Download, Plus, FileText, Loader2, X, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import {
   getSpecifications,
   getProjects,
   uploadSpecification,
+  deleteSpecification,
   type SpecificationDto,
   type ProjectDto,
 } from "../../services/qc.service";
+import { extractApiError } from "../../services/api";
 
 const API_ORIGIN = import.meta.env.VITE_SOCKET_URL ?? "http://localhost:3000";
 
@@ -47,14 +49,14 @@ export function RepositoriPage({ canUpload }: Props) {
   }, []);
 
   async function handleUpload() {
-    if (!form.projectId || !form.title || !file) {
-      toast.error("Lengkapi proyek, judul, dan file");
+    if (!form.projectId || !form.title) {
+      toast.error("Lengkapi proyek dan judul");
       return;
     }
     setBusy(true);
     try {
       await uploadSpecification({ ...form, file });
-      toast.success("Spesifikasi diunggah");
+      toast.success("Spesifikasi disimpan");
       setShowForm(false);
       setForm({ projectId: projects[0]?.id ?? "", title: "", version: "1.0" });
       setFile(null);
@@ -66,9 +68,22 @@ export function RepositoriPage({ canUpload }: Props) {
     }
   }
 
+  async function handleDelete(spec: SpecificationDto) {
+    if (!window.confirm(`Hapus spesifikasi "${spec.title}"?`)) return;
+    try {
+      await deleteSpecification(spec.id);
+      toast.success("Spesifikasi dihapus");
+      await load();
+    } catch (err) {
+      toast.error(extractApiError(err, "Gagal menghapus spesifikasi"));
+    }
+  }
+
   function handleDownload(spec: SpecificationDto) {
-    if (spec.fileUrl.startsWith("/uploads")) {
+    if (spec.fileUrl && spec.fileUrl.startsWith("/uploads")) {
       window.open(`${API_ORIGIN}${spec.fileUrl}`, "_blank");
+    } else if (!spec.fileUrl) {
+      toast.info("Spesifikasi ini tidak memiliki file lampiran");
     } else {
       toast.info("File tersimpan di cloud (S3) — demo, tidak dapat diunduh");
     }
@@ -144,7 +159,7 @@ export function RepositoriPage({ canUpload }: Props) {
           <div className="flex items-center gap-3">
             <input ref={fileRef} type="file" accept=".pdf,image/*" className="hidden" onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
             <button onClick={() => fileRef.current?.click()} className="h-11 px-4 rounded-xl border border-gray-300 text-sm font-semibold text-gray-700">
-              {file ? file.name : "Pilih File (PDF/gambar)"}
+              {file ? file.name : "Pilih File (PDF/gambar) — opsional"}
             </button>
             <button onClick={handleUpload} disabled={busy} className="h-11 px-5 rounded-xl text-white font-bold text-sm disabled:opacity-50 ml-auto" style={{ background: "#1E7E34" }}>
               {busy ? "Mengunggah..." : "Unggah"}
@@ -173,13 +188,24 @@ export function RepositoriPage({ canUpload }: Props) {
               <div className="text-[11px] text-gray-400 mb-3">
                 Diunggah {new Date(spec.uploadedAt).toLocaleDateString("id-ID", { day: "2-digit", month: "short", year: "numeric" })}
               </div>
-              <button
-                onClick={() => handleDownload(spec)}
-                className="w-full h-10 rounded-lg text-sm font-semibold text-white flex items-center justify-center gap-1.5"
-                style={{ background: "#1E7E34" }}
-              >
-                <Download size={14} /> Unduh / Buka
-              </button>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => handleDownload(spec)}
+                  className="flex-1 h-10 rounded-lg text-sm font-semibold text-white flex items-center justify-center gap-1.5"
+                  style={{ background: "#1E7E34" }}
+                >
+                  <Download size={14} /> Unduh / Buka
+                </button>
+                {canUpload && (
+                  <button
+                    onClick={() => handleDelete(spec)}
+                    title="Hapus spesifikasi"
+                    className="h-10 w-10 shrink-0 rounded-lg flex items-center justify-center text-red-600 border border-red-200 hover:bg-red-50"
+                  >
+                    <Trash2 size={16} />
+                  </button>
+                )}
+              </div>
             </div>
           ))}
         </div>

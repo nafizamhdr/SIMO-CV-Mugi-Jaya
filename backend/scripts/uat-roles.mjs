@@ -29,7 +29,6 @@ const CASES = [
   { email: "yudi@mugijaya.co.id", role: "KEPALA_PRODUKSI", allow: ["/produksi/dashboard", "/audit"], deny: ["/qc/records"] },
   { email: "asep@mugijaya.co.id", role: "MANDOR", allow: ["/produksi/warehouses"], deny: ["/produksi/dashboard", "/qc/records", "/logistik/vendors", "/audit"] },
   { email: "qc@mugijaya.co.id", role: "INSPECTOR_QC", allow: ["/qc/records", "/qc/specifications"], deny: ["/produksi/dashboard", "/logistik/vendors", "/audit"] },
-  { email: "edi@mugijaya.co.id", role: "SUPERVISOR_LAPANGAN", allow: ["/qc/specifications"], deny: ["/qc/records", "/produksi/dashboard", "/audit"] },
   { email: "admin@mugijaya.co.id", role: "ADMIN_OPERASIONAL", allow: ["/logistik/vendors", "/logistik/shipments"], deny: ["/produksi/dashboard", "/qc/records", "/audit"] },
 ];
 

@@ -1,8 +1,9 @@
 import { useEffect, useState, type FormEvent } from "react";
-import { Loader2, Plus, X, KeyRound, UserCheck, UserX, Pencil } from "lucide-react";
+import { Loader2, Plus, X, KeyRound, UserCheck, UserX, Pencil, Mail, Send } from "lucide-react";
 import { toast } from "sonner";
 import type { Role } from "../../types";
-import { getUsers, createUser, updateUser, resetPassword, type UserDto } from "../../services/users.service";
+import { getUsers, createUser, inviteUser, resendInvite, updateUser, resetPassword, type UserDto } from "../../services/users.service";
+import { extractApiError } from "../../services/api";
 import { useAuth } from "../../hooks/useAuth";
 
 const ROLE_LABEL: Record<Role, string> = {
@@ -10,8 +11,8 @@ const ROLE_LABEL: Record<Role, string> = {
   KEPALA_PRODUKSI: "Kepala Produksi",
   MANDOR: "Mandor",
   INSPECTOR_QC: "Inspector QC",
-  SUPERVISOR_LAPANGAN: "Supervisor Lapangan",
   ADMIN_OPERASIONAL: "Admin Operasional",
+  SUPER_ADMIN: "Super Admin",
 };
 
 const ROLES = Object.keys(ROLE_LABEL) as Role[];
@@ -25,6 +26,8 @@ export function UsersPage() {
   const [busy, setBusy] = useState(false);
 
   const [showForm, setShowForm] = useState(false);
+  const [inviteMode, setInviteMode] = useState(false);
+  const [inviteUrl, setInviteUrl] = useState<string | null>(null);
   const [form, setForm] = useState(emptyForm);
 
   const [editing, setEditing] = useState<UserDto | null>(null);
@@ -43,21 +46,57 @@ export function UsersPage() {
     void load();
   }, []);
 
+  function openCreate() {
+    setInviteMode(false);
+    setInviteUrl(null);
+    setForm(emptyForm);
+    setShowForm(true);
+  }
+  function openInvite() {
+    setInviteMode(true);
+    setInviteUrl(null);
+    setForm(emptyForm);
+    setShowForm(true);
+  }
+
+  async function handleResend(u: UserDto) {
+    try {
+      const { inviteUrl: url } = await resendInvite(u.id);
+      setInviteUrl(url);
+      toast.success("Undangan dikirim ulang");
+    } catch (err) {
+      toast.error(extractApiError(err, "Gagal mengirim ulang undangan"));
+    }
+  }
+
   async function handleCreate(e: FormEvent) {
     e.preventDefault();
-    if (!form.name || !form.email || form.password.length < 8) {
-      toast.error("Lengkapi data; kata sandi minimal 8 karakter");
+    if (!form.name || !form.email) {
+      toast.error("Lengkapi nama & email");
+      return;
+    }
+    if (!inviteMode && form.password.length < 8) {
+      toast.error("Kata sandi minimal 8 karakter");
       return;
     }
     setBusy(true);
     try {
+      if (inviteMode) {
+        const { inviteUrl: url } = await inviteUser({ name: form.name, email: form.email, role: form.role });
+        setInviteUrl(url);
+        toast.success(`Undangan untuk ${form.name} dibuat`);
+        setForm(emptyForm);
+        setShowForm(false);
+        await load();
+        return;
+      }
       await createUser(form);
       toast.success(`Akun ${form.name} berhasil dibuat`);
       setForm(emptyForm);
       setShowForm(false);
       await load();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Gagal membuat akun");
+      toast.error(extractApiError(err, "Gagal menyimpan akun"));
     } finally {
       setBusy(false);
     }
@@ -134,19 +173,38 @@ export function UsersPage() {
           <h3 className="font-bold text-gray-900">Daftar Akun ({users.length})</h3>
           <p className="text-xs text-gray-400">Akun nonaktif tidak dapat masuk ke sistem.</p>
         </div>
-        <button
-          onClick={() => setShowForm((v) => !v)}
-          className="ml-auto h-11 px-4 rounded-xl text-white font-bold text-sm flex items-center gap-2"
-          style={{ background: "linear-gradient(135deg,#1F3864,#2E5FA3)" }}
-        >
-          {showForm ? <X size={16} /> : <Plus size={16} />}
-          {showForm ? "Tutup" : "Tambah Akun"}
-        </button>
+        <div className="ml-auto flex gap-2">
+          <button
+            onClick={openInvite}
+            className="h-11 px-4 rounded-xl border border-blue-200 text-blue-700 font-bold text-sm flex items-center gap-2 hover:bg-blue-50"
+          >
+            <Mail size={16} /> Undang via Email
+          </button>
+          <button
+            onClick={openCreate}
+            className="h-11 px-4 rounded-xl text-white font-bold text-sm flex items-center gap-2"
+            style={{ background: "linear-gradient(135deg,#1F3864,#2E5FA3)" }}
+          >
+            <Plus size={16} /> Tambah Akun
+          </button>
+        </div>
       </div>
 
-      {/* Form tambah akun */}
+      {/* URL undangan (mode demo — biasanya dikirim via email) */}
+      {inviteUrl && (
+        <div className="bg-blue-50 border border-blue-200 rounded-2xl p-4 text-sm">
+          <div className="font-bold text-blue-800 mb-1">Tautan undangan (mode demo)</div>
+          <div className="flex items-center gap-2">
+            <input readOnly value={inviteUrl} className="flex-1 h-9 px-3 rounded-lg border border-blue-200 bg-white text-xs font-mono" onFocus={(e) => e.currentTarget.select()} />
+            <button onClick={() => { navigator.clipboard?.writeText(inviteUrl); toast.success("Tautan disalin"); }} className="h-9 px-3 rounded-lg bg-blue-700 text-white text-xs font-bold">Salin</button>
+          </div>
+        </div>
+      )}
+
+      {/* Form tambah / undang akun */}
       {showForm && (
         <form onSubmit={handleCreate} className="bg-white rounded-2xl p-5 border-2 border-blue-200 shadow-sm">
+          <div className="text-sm font-bold text-gray-700 mb-3">{inviteMode ? "Undang User (buat sandi sendiri via tautan)" : "Buat Akun Langsung"}</div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             <input
               placeholder="Nama lengkap"
@@ -161,13 +219,15 @@ export function UsersPage() {
               onChange={(e) => setForm({ ...form, email: e.target.value })}
               className="h-11 border border-gray-300 rounded-xl px-3 text-sm outline-none focus:border-blue-600"
             />
-            <input
-              type="password"
-              placeholder="Kata sandi (min. 8 karakter)"
-              value={form.password}
-              onChange={(e) => setForm({ ...form, password: e.target.value })}
-              className="h-11 border border-gray-300 rounded-xl px-3 text-sm outline-none focus:border-blue-600"
-            />
+            {!inviteMode && (
+              <input
+                type="password"
+                placeholder="Kata sandi (min. 8 karakter)"
+                value={form.password}
+                onChange={(e) => setForm({ ...form, password: e.target.value })}
+                className="h-11 border border-gray-300 rounded-xl px-3 text-sm outline-none focus:border-blue-600"
+              />
+            )}
             <select
               value={form.role}
               onChange={(e) => setForm({ ...form, role: e.target.value as Role })}
@@ -181,10 +241,11 @@ export function UsersPage() {
           <button
             type="submit"
             disabled={busy}
-            className="mt-4 h-11 px-6 rounded-xl text-white font-bold text-sm disabled:opacity-50"
+            className="mt-4 h-11 px-6 rounded-xl text-white font-bold text-sm disabled:opacity-50 flex items-center gap-2"
             style={{ background: "#1E7E34" }}
           >
-            {busy ? "Menyimpan..." : "Simpan Akun"}
+            {inviteMode && <Send size={14} />}
+            {busy ? "Menyimpan..." : inviteMode ? "Kirim Undangan" : "Simpan Akun"}
           </button>
         </form>
       )}
@@ -250,12 +311,25 @@ export function UsersPage() {
                     </span>
                   </td>
                   <td className="px-5 py-3">
-                    <span className={`text-xs font-bold px-2 py-1 rounded-full ${u.isActive ? "bg-green-100 text-green-700" : "bg-gray-200 text-gray-500"}`}>
-                      {u.isActive ? "AKTIF" : "NONAKTIF"}
-                    </span>
+                    {u.status === "INVITED" ? (
+                      <span className="text-xs font-bold px-2 py-1 rounded-full bg-orange-100 text-orange-700">DIUNDANG</span>
+                    ) : (
+                      <span className={`text-xs font-bold px-2 py-1 rounded-full ${u.isActive ? "bg-green-100 text-green-700" : "bg-gray-200 text-gray-500"}`}>
+                        {u.isActive ? "AKTIF" : "NONAKTIF"}
+                      </span>
+                    )}
                   </td>
                   <td className="px-5 py-3">
                     <div className="flex items-center justify-end gap-2">
+                      {u.status === "INVITED" && (
+                        <button
+                          onClick={() => handleResend(u)}
+                          title="Kirim ulang undangan"
+                          className="p-2 rounded-lg border border-orange-200 text-orange-600 hover:bg-orange-50"
+                        >
+                          <Send size={14} />
+                        </button>
+                      )}
                       <button
                         onClick={() => openEdit(u)}
                         title="Edit nama/role"

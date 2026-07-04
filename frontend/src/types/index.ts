@@ -7,8 +7,8 @@ export type Role =
   | "KEPALA_PRODUKSI"
   | "MANDOR"
   | "INSPECTOR_QC"
-  | "SUPERVISOR_LAPANGAN"
-  | "ADMIN_OPERASIONAL";
+  | "ADMIN_OPERASIONAL"
+  | "SUPER_ADMIN";
 
 export type WorkItemStatus = "TODO" | "IN_PROGRESS" | "DONE";
 export type QCStatus = "PENDING" | "PASSED" | "FAILED";

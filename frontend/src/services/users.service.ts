@@ -10,7 +10,18 @@ export interface UserDto {
   email: string;
   role: Role;
   isActive: boolean;
+  status: "ACTIVE" | "INVITED";
   createdAt: string;
+}
+
+export async function inviteUser(input: { name: string; email: string; role: Role }): Promise<{ inviteUrl: string }> {
+  const { data } = await api.post<ApiSuccess<{ inviteUrl: string }>>("/users/invite", input);
+  return unwrap(data);
+}
+
+export async function resendInvite(id: string): Promise<{ inviteUrl: string }> {
+  const { data } = await api.post<ApiSuccess<{ inviteUrl: string }>>(`/users/${id}/resend-invite`, {});
+  return unwrap(data);
 }
 
 export async function getUsers(): Promise<UserDto[]> {

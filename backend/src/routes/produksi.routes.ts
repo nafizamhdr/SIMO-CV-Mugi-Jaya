@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { authenticateJWT } from "../middleware/auth.middleware";
 import { requireRole } from "../middleware/rbac.middleware";
-import { upload } from "../middleware/upload.middleware";
+import { upload, verifyImageMagic } from "../middleware/upload.middleware";
 import * as produksi from "../controllers/produksi.controller";
 
 const router = Router();
@@ -28,6 +28,7 @@ router.patch(
   "/work-items/:id/status",
   requireRole(["MANDOR", "KEPALA_PRODUKSI"]),
   upload.single("photo"),
+  verifyImageMagic,
   produksi.updateStatus,
 );
 
@@ -43,6 +44,61 @@ router.get(
   "/notifications",
   requireRole(["OWNER", "KEPALA_PRODUKSI"]),
   produksi.getNotifications,
+);
+
+// CRUDS
+router.get(
+  "/projects",
+  requireRole(["KEPALA_PRODUKSI", "OWNER", "MANDOR"]),
+  produksi.getProjects,
+);
+
+router.post(
+  "/projects",
+  requireRole(["KEPALA_PRODUKSI"]),
+  produksi.createProject,
+);
+
+router.put(
+  "/projects/:id",
+  requireRole(["KEPALA_PRODUKSI"]),
+  produksi.updateProject,
+);
+
+router.delete(
+  "/projects/:id",
+  requireRole(["KEPALA_PRODUKSI"]),
+  produksi.deleteProject,
+);
+
+router.post(
+  "/warehouses",
+  requireRole(["KEPALA_PRODUKSI"]),
+  produksi.createWarehouse,
+);
+
+router.put(
+  "/warehouses/:id",
+  requireRole(["KEPALA_PRODUKSI"]),
+  produksi.updateWarehouse,
+);
+
+router.delete(
+  "/warehouses/:id",
+  requireRole(["KEPALA_PRODUKSI"]),
+  produksi.deleteWarehouse,
+);
+
+router.post(
+  "/work-items",
+  requireRole(["KEPALA_PRODUKSI"]),
+  produksi.createWorkItem,
+);
+
+router.get(
+  "/mandors",
+  requireRole(["KEPALA_PRODUKSI"]),
+  produksi.getMandors,
 );
 
 export default router;

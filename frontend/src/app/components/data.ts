@@ -12,7 +12,9 @@ export type PageKey =
   | "logistik"
   | "repositori"
   | "audit"
-  | "akun";
+  | "akun"
+  | "laporan"
+  | "tracking";
 
 export interface User {
   roleKey: RoleKey;
@@ -102,6 +104,16 @@ export const MENU_DEF: Record<
     label: "Manajemen Akun",
     title: "Manajemen Akun Pengguna",
     sub: "Kelola akun & hak akses karyawan",
+  },
+  laporan: {
+    label: "Laporan",
+    title: "Report Center",
+    sub: "Pratinjau & ekspor laporan (CSV/PDF)",
+  },
+  tracking: {
+    label: "Tracking Armada",
+    title: "Pemantauan Armada Real-time",
+    sub: "Peta posisi & status pengiriman",
   },
 };
 

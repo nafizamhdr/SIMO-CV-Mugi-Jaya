@@ -12,12 +12,12 @@ export interface RoleConfig {
 }
 
 export const ROLE_CONFIG: Record<Role, RoleConfig> = {
-  OWNER: { short: "OW", desc: "Pemilik", menus: ["dashboard", "audit", "akun"] },
-  KEPALA_PRODUKSI: { short: "PY", desc: "Kepala Produksi", menus: ["dashboard", "produksi", "audit"] },
+  OWNER: { short: "OW", desc: "Pemilik", menus: ["dashboard", "tracking", "laporan", "audit"] },
+  KEPALA_PRODUKSI: { short: "PY", desc: "Kepala Produksi", menus: ["dashboard", "produksi", "repositori", "tracking", "laporan", "audit"] },
   MANDOR: { short: "MD", desc: "Mandor", menus: ["produksi"] },
   INSPECTOR_QC: { short: "QC", desc: "Inspector QC", menus: ["qc", "repositori"] },
-  SUPERVISOR_LAPANGAN: { short: "PE", desc: "Supervisor Lapangan", menus: ["repositori"] },
   ADMIN_OPERASIONAL: { short: "AO", desc: "Admin Operasional", menus: ["logistik"] },
+  SUPER_ADMIN: { short: "SA", desc: "Super Admin", menus: ["akun"] },
 };
 
 export const PAGE_PATH: Record<PageKey, string> = {
@@ -28,6 +28,8 @@ export const PAGE_PATH: Record<PageKey, string> = {
   repositori: "/repositori",
   audit: "/audit",
   akun: "/akun",
+  laporan: "/laporan",
+  tracking: "/tracking",
 };
 
 export const PATH_PAGE: Record<string, PageKey> = Object.entries(PAGE_PATH).reduce(
@@ -52,7 +54,9 @@ export const PAGE_ALLOW: Record<PageKey, Role[]> = {
   produksi: ["KEPALA_PRODUKSI", "MANDOR"],
   qc: ["INSPECTOR_QC"],
   logistik: ["ADMIN_OPERASIONAL"],
-  repositori: ["INSPECTOR_QC", "SUPERVISOR_LAPANGAN"],
+  repositori: ["INSPECTOR_QC", "KEPALA_PRODUKSI"],
   audit: ["OWNER", "KEPALA_PRODUKSI"],
-  akun: ["OWNER"],
+  akun: ["SUPER_ADMIN"],
+  laporan: ["OWNER", "KEPALA_PRODUKSI"],
+  tracking: ["OWNER", "KEPALA_PRODUKSI"],
 };

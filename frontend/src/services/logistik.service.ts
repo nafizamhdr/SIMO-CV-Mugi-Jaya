@@ -28,6 +28,7 @@ export interface ShipmentDto {
   vendor?: { id: string; name: string };
   project?: { id: string; name: string };
   qcCertificate?: { id: string; certNumber: string };
+  trackingToken?: string | null;
   trackingLogs?: { lat: number; lng: number; isAnomaly: boolean; loggedAt: string }[];
 }
 
@@ -35,6 +36,44 @@ export interface CertOptionDto {
   id: string;
   certNumber: string;
   projectId: string;
+}
+
+export interface TrackPointDto {
+  lat: number;
+  lng: number;
+  speed: number | null;
+  isAnomaly: boolean;
+  loggedAt: string;
+}
+
+export async function getTracking(shipmentId: string): Promise<TrackPointDto[]> {
+  const { data } = await api.get<ApiSuccess<TrackPointDto[]>>(`/logistik/shipments/${shipmentId}/tracking`);
+  return unwrap(data);
+}
+
+export async function regenerateTrackingToken(shipmentId: string): Promise<{ trackingToken: string }> {
+  const { data } = await api.post<ApiSuccess<{ trackingToken: string }>>(`/logistik/shipments/${shipmentId}/tracking-token`, {});
+  return unwrap(data);
+}
+
+// --- Driver (publik, tanpa login) ---
+export interface DriverShipmentDto {
+  id: string;
+  driverName: string;
+  vehicleNo: string;
+  status: ShipmentStatus;
+  project: string;
+  vendor: string;
+}
+
+export async function getDriverShipment(id: string, token: string): Promise<DriverShipmentDto> {
+  const { data } = await api.get<ApiSuccess<DriverShipmentDto>>(`/logistik/driver/${id}`, { params: { token } });
+  return unwrap(data);
+}
+
+export async function driverPostLocation(id: string, token: string, lat: number, lng: number, speed?: number): Promise<{ anomaly: boolean }> {
+  const { data } = await api.post<ApiSuccess<{ anomaly: boolean }>>(`/logistik/driver/${id}/location`, { lat, lng, speed }, { params: { token } });
+  return unwrap(data);
 }
 
 export async function getVendors(): Promise<VendorDto[]> {

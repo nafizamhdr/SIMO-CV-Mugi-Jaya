@@ -11,6 +11,12 @@ import { LogistikPage } from "./components/LogistikPage";
 import { RepositoriPage } from "./components/RepositoriPage";
 import { AuditTrailPage } from "./components/AuditTrailPage";
 import { UsersPage } from "./components/UsersPage";
+import { ReportsPage } from "./components/ReportsPage";
+import { TrackingPage } from "./components/TrackingPage";
+import { ForgotPasswordPage } from "./components/ForgotPasswordPage";
+import { ResetPasswordPage } from "./components/ResetPasswordPage";
+import { AcceptInvitePage } from "./components/AcceptInvitePage";
+import { DriverTrackingPage } from "./components/DriverTrackingPage";
 import { SuratJalanModal } from "./components/SuratJalanModal";
 import { type PageKey } from "./components/data";
 import type { ShipmentDto } from "../services/logistik.service";
@@ -75,6 +81,12 @@ export default function App() {
         <Route path="/login" element={isAuthenticated ? <Navigate to={homePath} replace /> : <LoginPage />} />
         <Route path="/403" element={<ForbiddenPage />} />
 
+        {/* Publik (tanpa login) */}
+        <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+        <Route path="/reset-password" element={<ResetPasswordPage />} />
+        <Route path="/accept-invite" element={<AcceptInvitePage />} />
+        <Route path="/driver/:id" element={<DriverTrackingPage />} />
+
         <Route path="/dashboard" element={guard("dashboard", <DashboardPage />)} />
         <Route path="/produksi" element={guard("produksi", <ProduksiPage />)} />
         <Route path="/qc" element={guard("qc", <QCPage />)} />
@@ -82,6 +94,8 @@ export default function App() {
         <Route path="/repositori" element={guard("repositori", <RepositoriPage canUpload={canUpload} />)} />
         <Route path="/audit" element={guard("audit", <AuditTrailPage />)} />
         <Route path="/akun" element={guard("akun", <UsersPage />)} />
+        <Route path="/laporan" element={guard("laporan", <ReportsPage />)} />
+        <Route path="/tracking" element={guard("tracking", <TrackingPage />)} />
 
         <Route path="*" element={<Navigate to={isAuthenticated ? homePath : "/login"} replace />} />
       </Routes>

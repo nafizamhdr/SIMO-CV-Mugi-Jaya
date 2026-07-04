@@ -35,3 +35,26 @@ export async function logout(): Promise<void> {
     localStorage.removeItem(REFRESH_TOKEN_KEY);
   }
 }
+
+// --- Account lifecycle ---
+export async function changePassword(currentPassword: string, newPassword: string): Promise<void> {
+  await api.post("/auth/change-password", { currentPassword, newPassword });
+}
+
+export async function forgotPassword(email: string): Promise<{ message: string; resetUrl?: string }> {
+  const { data } = await api.post<ApiSuccess<{ message: string; resetUrl?: string }>>("/auth/forgot-password", { email });
+  return unwrap(data);
+}
+
+export async function resetPassword(token: string, password: string): Promise<void> {
+  await api.post("/auth/reset-password", { token, password });
+}
+
+export async function verifyInvite(token: string): Promise<{ email: string; name: string }> {
+  const { data } = await api.get<ApiSuccess<{ email: string; name: string }>>("/auth/invite/verify", { params: { token } });
+  return unwrap(data);
+}
+
+export async function acceptInvite(token: string, password: string): Promise<void> {
+  await api.post("/auth/invite/accept", { token, password });
+}
