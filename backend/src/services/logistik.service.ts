@@ -2,7 +2,7 @@ import crypto from "crypto";
 import { ShipmentStatus } from "@prisma/client";
 import { prisma } from "../lib/prisma";
 import { HttpError } from "../utils/apiResponse";
-import { isOutsideRoute } from "../utils/businessRules";
+import { isOffRoute, ORIGIN_BEKASI, type GeoPoint } from "../utils/businessRules";
 
 /**
  * Modul Logistik — logika bisnis (PIC: Redomas).
@@ -51,6 +51,12 @@ export async function createShipment(input: {
   driverName: string;
   vehicleNo: string;
   insurancePolis: string;
+  origin?: string;
+  originLat?: number;
+  originLng?: number;
+  destination: string;
+  destLat?: number;
+  destLng?: number;
   userId: string;
 }) {
   // FR-08: pengiriman WAJIB punya QC Certificate yang valid.
@@ -76,6 +82,12 @@ export async function createShipment(input: {
         driverName: input.driverName,
         vehicleNo: input.vehicleNo,
         insurancePolis: input.insurancePolis,
+        origin: input.origin ?? "Gudang CV Mugi Jaya, Bekasi",
+        originLat: input.originLat ?? ORIGIN_BEKASI.lat,
+        originLng: input.originLng ?? ORIGIN_BEKASI.lng,
+        destination: input.destination,
+        destLat: input.destLat ?? null,
+        destLng: input.destLng ?? null,
         status: ShipmentStatus.DISPATCHED,
         trackingToken: crypto.randomUUID(),
         departedAt: new Date(),
@@ -155,7 +167,15 @@ export async function recordTracking(input: { shipmentId: string; lat: number; l
   const shipment = await prisma.shipment.findUnique({ where: { id: input.shipmentId } });
   if (!shipment) throw new HttpError(404, "Pengiriman tidak ditemukan");
 
-  const anomaly = isOutsideRoute(input.lat, input.lng);
+  const origin: GeoPoint =
+    shipment.originLat != null && shipment.originLng != null
+      ? { lat: shipment.originLat, lng: shipment.originLng }
+      : ORIGIN_BEKASI;
+  const dest =
+    shipment.destLat != null && shipment.destLng != null
+      ? { lat: shipment.destLat, lng: shipment.destLng }
+      : null;
+  const anomaly = isOffRoute(input.lat, input.lng, dest, origin);
 
   const log = await prisma.trackingLog.create({
     data: {
@@ -167,7 +187,8 @@ export async function recordTracking(input: { shipmentId: string; lat: number; l
     },
   });
 
-  // FR-10: bila keluar rute, tandai shipment ANOMALY + AuditLog.
+  // FR-10: tandai ANOMALY saat keluar rute, dan PULIHKAN saat kembali ke rute.
+  const isDelivered = shipment.status === ShipmentStatus.DELIVERED;
   if (anomaly && shipment.status !== ShipmentStatus.ANOMALY) {
     await prisma.$transaction([
       prisma.shipment.update({ where: { id: input.shipmentId }, data: { status: ShipmentStatus.ANOMALY } }),
@@ -181,9 +202,52 @@ export async function recordTracking(input: { shipmentId: string; lat: number; l
         },
       }),
     ]);
+  } else if (!anomaly && shipment.status === ShipmentStatus.ANOMALY && !isDelivered) {
+    // Armada kembali ke koridor rute → pulihkan status.
+    await prisma.$transaction([
+      prisma.shipment.update({ where: { id: input.shipmentId }, data: { status: ShipmentStatus.IN_TRANSIT } }),
+      prisma.auditLog.create({
+        data: {
+          userId: shipment.createdById,
+          action: "GEOFENCE_RECOVERED",
+          entity: "Shipment",
+          entityId: input.shipmentId,
+          after: { lat: input.lat, lng: input.lng },
+        },
+      }),
+    ]);
   }
 
   return { log, anomaly };
+}
+
+/**
+ * Hitung ulang status anomali seluruh pengiriman aktif dari posisi terakhirnya
+ * memakai geofencing route-aware terbaru. Menyembuhkan anomali "nyangkut" dari
+ * logika lama. Mengembalikan jumlah pengiriman yang statusnya diperbaiki.
+ */
+export async function reconcileAnomalies(): Promise<number> {
+  const shipments = await prisma.shipment.findMany({
+    where: { status: { not: ShipmentStatus.DELIVERED } },
+    include: { trackingLogs: { orderBy: { loggedAt: "desc" }, take: 1 } },
+  });
+
+  let fixed = 0;
+  for (const s of shipments) {
+    const last = s.trackingLogs[0];
+    const dest = s.destLat != null && s.destLng != null ? { lat: s.destLat, lng: s.destLng } : null;
+    const origin: GeoPoint = s.originLat != null && s.originLng != null ? { lat: s.originLat, lng: s.originLng } : ORIGIN_BEKASI;
+    const offRoute = last ? isOffRoute(last.lat, last.lng, dest, origin) : false;
+    const target = offRoute ? ShipmentStatus.ANOMALY : s.status === ShipmentStatus.ANOMALY ? ShipmentStatus.IN_TRANSIT : s.status;
+    if (target !== s.status) {
+      await prisma.shipment.update({ where: { id: s.id }, data: { status: target } });
+      if (last && !offRoute) {
+        await prisma.trackingLog.updateMany({ where: { shipmentId: s.id, isAnomaly: true }, data: { isAnomaly: false } });
+      }
+      fixed++;
+    }
+  }
+  return fixed;
 }
 
 // --- FR-11 Fallback check-in ---

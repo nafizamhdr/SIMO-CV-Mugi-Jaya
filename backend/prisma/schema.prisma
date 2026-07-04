@@ -229,6 +229,12 @@ model Shipment {
   driverName      String
   vehicleNo       String
   insurancePolis  String
+  origin          String? // alamat keberangkatan (asal rute)
+  originLat       Float? // koordinat keberangkatan (geofencing route-aware)
+  originLng       Float?
+  destination     String? // alamat/tujuan pengiriman (surat jalan)
+  destLat         Float? // koordinat tujuan (geofencing route-aware)
+  destLng         Float?
   status          ShipmentStatus @default(DRAFT)
   trackingToken   String?        @unique // token akses halaman driver (tanpa login)
   departedAt      DateTime?

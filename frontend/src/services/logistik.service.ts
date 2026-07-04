@@ -22,6 +22,12 @@ export interface ShipmentDto {
   driverName: string;
   vehicleNo: string;
   insurancePolis: string;
+  origin: string | null;
+  originLat: number | null;
+  originLng: number | null;
+  destination: string | null;
+  destLat: number | null;
+  destLng: number | null;
   status: ShipmentStatus;
   departedAt: string | null;
   arrivedAt: string | null;
@@ -114,6 +120,12 @@ export async function createShipment(input: {
   driverName: string;
   vehicleNo: string;
   insurancePolis: string;
+  origin?: string;
+  originLat?: number;
+  originLng?: number;
+  destination: string;
+  destLat?: number;
+  destLng?: number;
 }): Promise<ShipmentDto> {
   const { data } = await api.post<ApiSuccess<ShipmentDto>>("/logistik/shipments", input);
   return unwrap(data);
@@ -126,6 +138,11 @@ export async function postTracking(input: {
   speed?: number;
 }): Promise<{ anomaly: boolean }> {
   const { data } = await api.post<ApiSuccess<{ anomaly: boolean }>>("/logistik/tracking", input);
+  return unwrap(data);
+}
+
+export async function deliverShipment(shipmentId: string): Promise<ShipmentDto> {
+  const { data } = await api.patch<ApiSuccess<ShipmentDto>>(`/logistik/shipments/${shipmentId}/deliver`, {});
   return unwrap(data);
 }
 

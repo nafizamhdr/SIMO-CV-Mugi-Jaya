@@ -22,14 +22,30 @@ export const updateVendorSchema = z.object({
 });
 
 // FR-08 — Manifest / Shipment
-export const createShipmentSchema = z.object({
-  projectId: z.string().min(1, "projectId wajib diisi"),
-  vendorId: z.string().min(1, "vendorId wajib diisi"),
-  qcCertificateId: z.string().min(1, "QC Certificate wajib ada sebelum pengiriman"),
-  driverName: z.string().min(1, "Nama driver wajib diisi"),
-  vehicleNo: z.string().min(1, "No. kendaraan wajib diisi"),
-  insurancePolis: z.string().min(1, "No. polis asuransi wajib diisi"),
-});
+export const createShipmentSchema = z
+  .object({
+    projectId: z.string().min(1, "projectId wajib diisi"),
+    vendorId: z.string().min(1, "vendorId wajib diisi"),
+    qcCertificateId: z.string().min(1, "QC Certificate wajib ada sebelum pengiriman"),
+    driverName: z.string().min(1, "Nama driver wajib diisi"),
+    vehicleNo: z.string().min(1, "No. kendaraan wajib diisi"),
+    insurancePolis: z.string().min(1, "No. polis asuransi wajib diisi"),
+    origin: z.string().min(1).optional(),
+    originLat: z.number().min(-90).max(90).optional(),
+    originLng: z.number().min(-180).max(180).optional(),
+    destination: z.string().min(1, "Tujuan pengiriman wajib diisi"),
+    destLat: z.number().min(-90).max(90).optional(),
+    destLng: z.number().min(-180).max(180).optional(),
+  })
+  // Koordinat harus lengkap (dua-duanya) atau tidak sama sekali.
+  .refine((d) => (d.destLat === undefined) === (d.destLng === undefined), {
+    message: "Koordinat tujuan (lat & lng) harus diisi berpasangan",
+    path: ["destLat"],
+  })
+  .refine((d) => (d.originLat === undefined) === (d.originLng === undefined), {
+    message: "Koordinat keberangkatan (lat & lng) harus diisi berpasangan",
+    path: ["originLat"],
+  });
 
 // FR-09 — Tracking
 export const trackingSchema = z.object({

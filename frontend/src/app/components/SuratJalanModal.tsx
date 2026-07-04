@@ -33,7 +33,8 @@ export function SuratJalanModal({ shipment: s, onClose }: Props) {
               ["Driver", s.driverName, false],
               ["No. Kendaraan", s.vehicleNo, true],
               ["No. Polis Asuransi", s.insurancePolis, true],
-              ["Tujuan", s.project?.name ?? s.projectId, false],
+              ["Proyek", s.project?.name ?? s.projectId, false],
+              ["Tujuan Pengiriman", s.destination ?? s.project?.name ?? s.projectId, false],
             ].map(([label, val, mono]) => (
               <tr key={String(label)} className="border-t border-gray-100">
                 <td className="py-2 text-gray-500 w-44">{label}</td>

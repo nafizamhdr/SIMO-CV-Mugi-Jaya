@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { tallyWorkItems, isLate, evaluateDimensions, isOutsideRoute } from "./businessRules";
+import { tallyWorkItems, isLate, evaluateDimensions, isOffRoute, haversineKm, ORIGIN_BEKASI } from "./businessRules";
 
 describe("tallyWorkItems (Produksi FR-02)", () => {
   it("menghitung progres 0% saat kosong", () => {
@@ -42,13 +42,26 @@ describe("evaluateDimensions (QC FR-04)", () => {
   });
 });
 
-describe("isOutsideRoute (Logistik FR-10)", () => {
-  it("di dalam koridor -> normal", () => {
-    expect(isOutsideRoute(-6.2, 107.0)).toBe(false); // Bekasi
-    expect(isOutsideRoute(-2.5, 118.0)).toBe(false); // arah IKN
+describe("geofencing route-aware (Logistik FR-10)", () => {
+  const IKN = { lat: -1.05, lng: 116.7 }; // tujuan contoh: IKN Penajam
+
+  it("titik di sepanjang rute -> normal", () => {
+    expect(isOffRoute(ORIGIN_BEKASI.lat, ORIGIN_BEKASI.lng, IKN)).toBe(false); // di asal
+    expect(isOffRoute(IKN.lat, IKN.lng, IKN)).toBe(false); // di tujuan
+    expect(isOffRoute(-6.2, 107.0, IKN)).toBe(false); // dekat asal Bekasi
   });
-  it("di luar koridor -> anomali", () => {
-    expect(isOutsideRoute(-20.0, 130.0)).toBe(true);
-    expect(isOutsideRoute(-6.2, 90.0)).toBe(true); // lng terlalu barat
+
+  it("titik jauh dari rute -> anomali", () => {
+    expect(isOffRoute(-20.0, 130.0, IKN)).toBe(true); // jauh di selatan/timur
+  });
+
+  it("tanpa koordinat tujuan -> tidak dicek (tak anomali palsu)", () => {
+    expect(isOffRoute(-20.0, 130.0, null)).toBe(false);
+  });
+
+  it("haversine memberi jarak Bekasi->IKN yang masuk akal", () => {
+    const d = haversineKm(ORIGIN_BEKASI, IKN);
+    expect(d).toBeGreaterThan(1000);
+    expect(d).toBeLessThan(1600);
   });
 });

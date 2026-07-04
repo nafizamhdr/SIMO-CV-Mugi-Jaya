@@ -8,6 +8,7 @@ import { UPLOAD_DIR } from "./middleware/upload.middleware";
 import { errorHandler, notFoundHandler } from "./middleware/error.middleware";
 import { connectRedis } from "./lib/redis";
 import { logger } from "./lib/logger";
+import { reconcileAnomalies } from "./services/logistik.service";
 
 const app = express();
 const server = http.createServer(app);
@@ -60,6 +61,15 @@ const PORT = Number(process.env.PORT ?? 3000);
 
 async function bootstrap(): Promise<void> {
   await connectRedis();
+
+  // Sembuhkan status anomali "nyangkut" dari data lama (geofencing route-aware).
+  try {
+    const fixed = await reconcileAnomalies();
+    if (fixed > 0) logger.info(`Reconcile anomali: ${fixed} pengiriman diperbaiki`);
+  } catch (error) {
+    logger.warn("Reconcile anomali gagal (dilewati)", error);
+  }
+
   server.listen(PORT, () => {
     logger.info(`SIMO backend berjalan di http://localhost:${PORT}`);
     logger.info(`Health check: http://localhost:${PORT}/api/health`);

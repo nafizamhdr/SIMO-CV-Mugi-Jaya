@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, Fragment } from "react";
 import { MapContainer, TileLayer, Marker, Popup, Polyline } from "react-leaflet";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
@@ -15,6 +15,18 @@ const truckIcon = (anomaly: boolean) =>
     iconSize: [40, 20],
     iconAnchor: [20, 10],
   });
+const originIcon = L.divIcon({
+  html: `<div class="w-7 h-7 rounded-full flex items-center justify-center text-white shadow-md bg-[#1F3864] text-xs">📦</div>`,
+  className: "custom-leaflet-icon",
+  iconSize: [28, 28],
+  iconAnchor: [14, 14],
+});
+const destIcon = L.divIcon({
+  html: `<div class="w-7 h-7 rounded-full flex items-center justify-center text-white shadow-md bg-[#C0392B] text-xs">🏁</div>`,
+  className: "custom-leaflet-icon",
+  iconSize: [28, 28],
+  iconAnchor: [14, 14],
+});
 
 const STATUS: Record<ShipmentStatus, { badge: string; label: string }> = {
   DRAFT: { badge: "bg-gray-100 text-gray-600", label: "DRAFT" },
@@ -97,21 +109,47 @@ export function TrackingPage() {
           <button onClick={() => load()} className="text-gray-400 hover:text-gray-600" title="Muat ulang"><RefreshCw size={16} /></button>
         </div>
         <div className="rounded-xl overflow-hidden relative z-0" style={{ height: 380 }}>
-          <MapContainer center={[-6.24, 107.0]} zoom={11} style={{ height: "100%", width: "100%", zIndex: 0 }}>
+          <MapContainer center={[-4.5, 111.5]} zoom={5} style={{ height: "100%", width: "100%", zIndex: 0 }}>
             <TileLayer attribution='&copy; OSM' url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
             {active.map((s, i) => {
               const last = s.trackingLogs?.[0];
               const lat = last ? last.lat : -6.241 - i * 0.002;
               const lng = last ? last.lng : 106.99 + i * 0.02;
+              const hasOrigin = s.originLat != null && s.originLng != null;
+              const hasDest = s.destLat != null && s.destLng != null;
+              // Garis rute rencana: asal → posisi kini → tujuan.
+              const routeLine: [number, number][] = [];
+              if (hasOrigin) routeLine.push([s.originLat!, s.originLng!]);
+              routeLine.push([lat, lng]);
+              if (hasDest) routeLine.push([s.destLat!, s.destLng!]);
+              const anomaly = s.status === "ANOMALY";
               return (
-                <Marker key={s.id} position={[lat, lng]} icon={truckIcon(s.status === "ANOMALY")}>
-                  <Popup>
-                    <b>{s.id.slice(-8)}</b><br />Status: {STATUS[s.status].label}<br />Driver: {s.driverName}
-                  </Popup>
-                </Marker>
+                <Fragment key={s.id}>
+                  {hasOrigin && (
+                    <Marker position={[s.originLat!, s.originLng!]} icon={originIcon}>
+                      <Popup>Keberangkatan: {s.origin ?? "-"}</Popup>
+                    </Marker>
+                  )}
+                  {hasDest && (
+                    <Marker position={[s.destLat!, s.destLng!]} icon={destIcon}>
+                      <Popup>Tujuan: {s.destination ?? "-"}</Popup>
+                    </Marker>
+                  )}
+                  <Marker position={[lat, lng]} icon={truckIcon(anomaly)}>
+                    <Popup>
+                      <b>{s.id.slice(-8)}</b>
+                      <br />Status: {STATUS[s.status].label}
+                      <br />Driver: {s.driverName}
+                      <br />Rute: {s.origin ?? "Bekasi"} → {s.destination ?? "-"}
+                    </Popup>
+                  </Marker>
+                  {routeLine.length > 1 && (
+                    <Polyline positions={routeLine} pathOptions={{ color: anomaly ? "#C00000" : "#2E5FA3", weight: 2, dashArray: "5,7", opacity: 0.6 }} />
+                  )}
+                </Fragment>
               );
             })}
-            {trail.length > 1 && <Polyline positions={trail.map((p) => [p.lat, p.lng] as [number, number])} pathOptions={{ color: "#2E5FA3", weight: 3, dashArray: "6,6" }} />}
+            {trail.length > 1 && <Polyline positions={trail.map((p) => [p.lat, p.lng] as [number, number])} pathOptions={{ color: "#1E7E34", weight: 3 }} />}
           </MapContainer>
         </div>
       </div>
@@ -123,7 +161,10 @@ export function TrackingPage() {
             <div key={s.id} className={`flex items-center gap-3 p-3 rounded-xl border ${s.status === "ANOMALY" ? "border-red-300 bg-red-50" : "border-gray-100"}`}>
               <div className="flex-1 min-w-0">
                 <div className="text-sm font-bold text-gray-800 font-mono">{s.id.slice(-8)}</div>
-                <div className="text-xs text-gray-500 truncate">{s.project?.name} · {s.vendor?.name} · {s.driverName}</div>
+                <div className="text-xs text-gray-500 truncate">{s.vendor?.name} · {s.driverName}</div>
+                <div className="text-[11px] text-gray-400 truncate flex items-center gap-1 mt-0.5">
+                  <span>📦 {s.origin ?? "Bekasi"}</span> → <span>🏁 {s.destination ?? s.project?.name ?? "-"}</span>
+                </div>
                 {s.status === "ANOMALY" && <div className="text-[11px] text-red-600 font-semibold flex items-center gap-1 mt-0.5"><AlertTriangle size={11} /> Keluar rute</div>}
               </div>
               <span className={`text-[10px] font-bold px-2 py-1 rounded-full ${STATUS[s.status].badge}`}>{STATUS[s.status].label}</span>

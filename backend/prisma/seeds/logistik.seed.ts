@@ -18,7 +18,7 @@ export async function seedLogistik(prisma: PrismaClient): Promise<void> {
 
   await prisma.shipment.upsert({
     where: { id: "ship-01" },
-    update: { status: ShipmentStatus.DISPATCHED },
+    update: { status: ShipmentStatus.DISPATCHED, destination: "Kawasan IKN, Penajam Paser Utara", destLat: -1.05, destLng: 116.7 },
     create: {
       id: "ship-01",
       projectId: "prj-ikn",
@@ -28,6 +28,12 @@ export async function seedLogistik(prisma: PrismaClient): Promise<void> {
       driverName: "Slamet R.",
       vehicleNo: "B 9087 KJ",
       insurancePolis: "POL-2026-100231",
+      origin: "Gudang CV Mugi Jaya, Bekasi",
+      originLat: -6.241586,
+      originLng: 106.992416,
+      destination: "Kawasan IKN, Penajam Paser Utara",
+      destLat: -1.05,
+      destLng: 116.7,
       status: ShipmentStatus.DISPATCHED,
       departedAt: new Date("2026-06-05T08:00:00Z"),
     },
@@ -35,7 +41,7 @@ export async function seedLogistik(prisma: PrismaClient): Promise<void> {
 
   await prisma.shipment.upsert({
     where: { id: "ship-02" },
-    update: { status: ShipmentStatus.DELIVERED },
+    update: { status: ShipmentStatus.DELIVERED, destination: "Kantor Proyek Waskita, Jakarta Selatan", destLat: -6.2607, destLng: 106.8107 },
     create: {
       id: "ship-02",
       projectId: "prj-wsk",
@@ -44,19 +50,25 @@ export async function seedLogistik(prisma: PrismaClient): Promise<void> {
       driverName: "Budi S.",
       vehicleNo: "B 9123 LM",
       insurancePolis: "POL-2026-100199",
+      origin: "Gudang CV Mugi Jaya, Bekasi",
+      originLat: -6.241586,
+      originLng: 106.992416,
+      destination: "Kantor Proyek Waskita, Jakarta Selatan",
+      destLat: -6.2607,
+      destLng: 106.8107,
       status: ShipmentStatus.DELIVERED,
       departedAt: new Date("2026-05-28T07:00:00Z"),
       arrivedAt: new Date("2026-05-29T16:30:00Z"),
     },
   });
 
-  // Tracking log untuk shipment yang sedang berjalan
+  // Tracking log untuk shipment yang sedang berjalan (titik di sepanjang rute Bekasi->IKN)
   const existingLogs = await prisma.trackingLog.count({ where: { shipmentId: "ship-01" } });
   if (existingLogs === 0) {
     await prisma.trackingLog.createMany({
       data: [
         { shipmentId: "ship-01", lat: -6.2615, lng: 106.8106, speed: 0, isAnomaly: false },
-        { shipmentId: "ship-01", lat: -2.5489, lng: 118.0149, speed: 62.5, isAnomaly: false },
+        { shipmentId: "ship-01", lat: -3.65, lng: 111.85, speed: 62.5, isAnomaly: false },
       ],
     });
   }

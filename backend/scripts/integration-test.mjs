@@ -81,6 +81,9 @@ async function main() {
       driverName: "Integration Driver",
       vehicleNo: "B 7777 IT",
       insurancePolis: "POL-IT-001",
+      destination: "Kawasan IKN, Penajam Paser Utara",
+      destLat: -1.05,
+      destLng: 116.7,
     }),
   });
   const shipJson = await ship.json();
@@ -92,7 +95,7 @@ async function main() {
     headers: jsonAuth(admin),
     body: JSON.stringify({
       projectId: "prj-ikn", vendorId: "ven-01", qcCertificateId: certId,
-      driverName: "X", vehicleNo: "B1", insurancePolis: "P1",
+      driverName: "X", vehicleNo: "B1", insurancePolis: "P1", destination: "IKN",
     }),
   });
   dup.status === 400 ? ok("Integrasi: certificate tidak bisa dipakai 2x (400)") : no(`dup cert (${dup.status})`);
